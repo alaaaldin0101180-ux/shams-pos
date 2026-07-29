@@ -9,6 +9,23 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
+<!-- =============================================
+     إعدادات النسخة — كل ما يتغيّر عند التسليم لمحل جديد موجود هنا وحده
+     ============================================= -->
+<script>
+window.SHAMS_CONFIG = {
+  // رابط قاعدة بيانات Firebase Realtime Database الخاصة بهذه النسخة
+  databaseURL: 'https://shams-pos-default-rtdb.firebaseio.com',
+
+  // المسار الجذر داخل القاعدة. تغييره يعزل بيانات هذه النسخة تماماً،
+  // ويسمح بتشغيل أكثر من محل على نفس القاعدة عند الحاجة.
+  dbPath: 'shams_v1',
+
+  // اسم النظام كما يظهر في الشاشة وعنوان الصفحة
+  appName: 'الشمس | Shams',
+};
+</script>
+
 <!-- Firebase -->
 <script>
 window._fbAvailable = false;
@@ -23,7 +40,7 @@ window._fbTimeout = setTimeout(() => {
   try {
     const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
     const { getDatabase, ref, set, push, update, remove, onValue, runTransaction } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js");
-    const app = initializeApp({ databaseURL: "https://carpet-a36a8-default-rtdb.firebaseio.com" });
+    const app = initializeApp({ databaseURL: window.SHAMS_CONFIG.databaseURL });
     const db  = getDatabase(app);
     window.$db = db; window.$ref = ref; window.$set = set; window.$push = push;
     window.$update = update; window.$remove = remove; window.$onValue = onValue;
@@ -5118,7 +5135,8 @@ let editingBranch = null;
 let loginSelectedUser = null;
 let allLoginUsers = [];
 let confirmCb = null;
-const DB_PATH = 'shams_v1';
+// المصدر الوحيد لهذه القيم هو SHAMS_CONFIG أعلى الملف
+const DB_PATH = window.SHAMS_CONFIG?.dbPath || 'shams_v1';
 
 // ============================================================
 // ROLES CONFIG
