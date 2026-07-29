@@ -17,9 +17,21 @@ window.SHAMS_CONFIG = {
   // رابط قاعدة بيانات Firebase Realtime Database الخاصة بهذه النسخة
   databaseURL: 'https://shams-pos-default-rtdb.firebaseio.com',
 
+  // بيانات المشروع — تُنسخ من: Firebase Console ← ⚙️ Project settings ←
+  // Your apps ← تطبيق ويب. هذه القيم عامة بطبيعتها (تُرسل لكل متصفح)
+  // والحماية تأتي من قواعد قاعدة البيانات لا من إخفائها.
+  apiKey:     'ضع-هنا-apiKey-من-إعدادات-المشروع',
+  authDomain: 'shams-pos.firebaseapp.com',
+  projectId:  'shams-pos',
+
   // المسار الجذر داخل القاعدة. تغييره يعزل بيانات هذه النسخة تماماً،
   // ويسمح بتشغيل أكثر من محل على نفس القاعدة عند الحاجة.
   dbPath: 'shams_v1',
+
+  // بريد المالك — هو وحده من يدخل بحساب جوجل على حساب المدير العام.
+  // نفس القيمة يجب أن تُكتب في قواعد Firebase، فالواجهة تمنع بالخطأ
+  // والقواعد تمنع بالقصد.
+  ownerEmail: 'alaaaldin0101180@gmail.com',
 
   // اسم النظام كما يظهر في الشاشة وعنوان الصفحة
   appName: 'الشمس | Shams',
@@ -40,11 +52,37 @@ window._fbTimeout = setTimeout(() => {
   try {
     const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
     const { getDatabase, ref, set, push, update, remove, onValue, runTransaction } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js");
-    const app = initializeApp({ databaseURL: window.SHAMS_CONFIG.databaseURL });
+    const { getAuth, signInAnonymously, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged }
+      = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+
+    const app = initializeApp({
+      databaseURL: window.SHAMS_CONFIG.databaseURL,
+      apiKey:      window.SHAMS_CONFIG.apiKey,
+      authDomain:  window.SHAMS_CONFIG.authDomain,
+      projectId:   window.SHAMS_CONFIG.projectId,
+    });
     const db  = getDatabase(app);
+    const auth= getAuth(app);
+
     window.$db = db; window.$ref = ref; window.$set = set; window.$push = push;
     window.$update = update; window.$remove = remove; window.$onValue = onValue;
     window.$runTransaction = runTransaction;
+
+    window.$auth = auth;
+    window.$signInAnon   = () => signInAnonymously(auth);
+    window.$signOutFb    = () => signOut(auth);
+    window.$onAuthChange = cb => onAuthStateChanged(auth, cb);
+    window.$signInGoogle = () => {
+      const provider = new GoogleAuthProvider();
+      // نطلب اختيار الحساب في كل مرة حتى لا يدخل بحساب سبق تسجيله على الجهاز
+      provider.setCustomParameters({ prompt:'select_account' });
+      return signInWithPopup(auth, provider);
+    };
+
+    // القواعد تمنع القراءة قبل المصادقة، فنبدأ بجلسة مجهولة تكفي الموظفين
+    try { if(!auth.currentUser) await signInAnonymously(auth); }
+    catch(e){ console.warn('تعذّر تسجيل الدخول المجهول:', e.code||e.message); }
+
     window._fbAvailable = true;
     clearTimeout(window._fbTimeout);
     window.dispatchEvent(new Event('fbReady'));
@@ -1054,6 +1092,28 @@ textarea.fc{resize:vertical;min-height:80px;}
       <button class="login-btn" id="btn-next" onclick="loginNext()" style="margin-top:6px;">
         <i class="fas fa-arrow-left"></i> التالي
       </button>
+
+      <!-- فاصل -->
+      <div style="display:flex;align-items:center;gap:10px;margin:18px 0 14px;">
+        <div style="flex:1;height:1px;background:var(--border);"></div>
+        <span style="font-size:11px;color:var(--text3);">أو</span>
+        <div style="flex:1;height:1px;background:var(--border);"></div>
+      </div>
+
+      <!-- دخول المدير العام بحساب جوجل -->
+      <button class="login-btn" id="btn-google" onclick="doGoogleLogin()"
+              style="background:#fff;color:#3c4043;border:1px solid #dadce0;display:flex;align-items:center;justify-content:center;gap:10px;">
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.7 1.22 9.2 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        الدخول كمدير عام بحساب جوجل
+      </button>
+      <div style="font-size:10.5px;color:var(--text3);text-align:center;margin-top:8px;line-height:1.7;">
+        مخصّص لحساب المالك وحده — باقي الموظفين يدخلون باسم المستخدم وكلمة المرور
+      </div>
     </div>
 
     <!-- ===== STEP 2: كلمة المرور ===== -->
@@ -5953,6 +6013,70 @@ document.addEventListener('click',e=>{
 });
 
 // ============================================================
+// AUTH — دخول المدير العام بحساب جوجل
+// ============================================================
+// المالك وحده يدخل على حساب المدير العام. الفحص هنا يمنع الخطأ،
+// وقواعد Firebase تمنع القصد: أي كتابة على المستخدمين أو الإعدادات
+// مرفوضة من السيرفر ما لم يكن بريد الجلسة هو بريد المالك.
+async function doGoogleLogin(){
+  const btn=document.getElementById('btn-google');
+  const ownerEmail=(window.SHAMS_CONFIG?.ownerEmail||'').toLowerCase();
+  clearLoginErr();
+
+  if(typeof window.$signInGoogle!=='function'){
+    showLoginErr('خدمة الدخول بجوجل غير متاحة — تحقق من الاتصال بالإنترنت');
+    return;
+  }
+  if(btn){ btn.disabled=true; btn.style.opacity='.6'; }
+
+  try{
+    const cred=await window.$signInGoogle();
+    const email=(cred?.user?.email||'').toLowerCase();
+
+    if(!email || email!==ownerEmail){
+      // حساب غير مصرّح له: نُنهي جلسته فوراً ونعود لجلسة مجهولة
+      await window.$signOutFb().catch(()=>{});
+      await window.$signInAnon().catch(()=>{});
+      showLoginErr(`الحساب ${email||'المستخدم'} غير مصرّح له بالدخول كمدير عام`);
+      return;
+    }
+
+    // نربط الجلسة بسجل المدير العام في قاعدة البيانات
+    let entry=Object.entries(S.users||{}).find(([,u])=>u.role==='admin'&&u.status==='active');
+    if(!entry){
+      showLoginErr('لم يُعثر على حساب المدير العام في قاعدة البيانات');
+      return;
+    }
+    const [uid,user]=entry;
+    CURRENT_USER={...user, id:uid, email, authProvider:'google'};
+    localStorage.setItem('shams-user',JSON.stringify(CURRENT_USER));
+    dbUpdate('users/'+uid,{ lastLogin:new Date().toISOString(), email }).catch(()=>{});
+
+    showApp();
+    _shiftClosedByAdmin=false;
+    ensureMyShift();
+    toast(`أهلاً ${user.name||'المدير العام'} 👋`,'success');
+
+  }catch(e){
+    const code=e?.code||'';
+    if(code==='auth/popup-closed-by-user'||code==='auth/cancelled-popup-request'){
+      clearLoginErr();                       // ألغى المستخدم بنفسه — لا رسالة خطأ
+    }else if(code==='auth/popup-blocked'){
+      showLoginErr('المتصفح منع النافذة المنبثقة — اسمح بها لهذا الموقع ثم أعد المحاولة');
+    }else if(code==='auth/operation-not-allowed'){
+      showLoginErr('دخول جوجل غير مفعّل في إعدادات Firebase');
+    }else if(code==='auth/unauthorized-domain'){
+      showLoginErr('هذا النطاق غير مُصرّح به في Firebase — أضفه في Authentication ← Settings ← Authorized domains');
+    }else{
+      showLoginErr('تعذّر الدخول بجوجل: '+(e?.message||code));
+    }
+    console.warn('Google login failed',e);
+  }finally{
+    if(btn){ btn.disabled=false; btn.style.opacity='1'; }
+  }
+}
+
+// ============================================================
 // AUTH — LOGIN
 // ============================================================
 function doLogin(){
@@ -5965,6 +6089,13 @@ function doLogin(){
   // Verify against fresh data
   const fresh = (S.users||{})[loginSelectedUser.id];
   if(!fresh||fresh.status!=='active'){ showLoginErr('الحساب غير موجود أو معطل'); return; }
+
+  // حساب المدير العام لا يُفتح بكلمة مرور — بحساب جوجل المصرّح به وحده
+  if(fresh.role==='admin'){
+    showLoginErr('حساب المدير العام يُفتح بحساب جوجل فقط — استخدم الزر بالأسفل');
+    return;
+  }
+
   if(fresh.password!==btoa(pass)){ showLoginErr('كلمة المرور غير صحيحة'); return; }
 
   CURRENT_USER={...fresh,id:loginSelectedUser.id};
@@ -5983,6 +6114,13 @@ async function doLogout(){
   if(!ok) return;
   // الوردية لا تُقفل بالخروج — يقفلها المدير العام فقط
   if(CURRENT_SHIFT) toast('ورديتك ما زالت مفتوحة — المدير العام هو من يقفلها','info');
+
+  // ننهي جلسة جوجل ونعود لجلسة مجهولة، وإلا بقي الجهاز مسجّلاً ببريد المالك
+  try{
+    if(window.$signOutFb) await window.$signOutFb();
+    if(window.$signInAnon) await window.$signInAnon();
+  }catch(e){ console.warn('تعذّر إنهاء جلسة المصادقة',e); }
+
   CURRENT_USER=null;
   CURRENT_SHIFT=null;
   localStorage.removeItem('shams-user');
@@ -6901,7 +7039,13 @@ window.addEventListener('fbReady',()=>{
     if(!CURRENT_USER){
       if(checkSession()){
         const fresh=S.users[CURRENT_USER.id];
-        if(fresh&&fresh.status==='active'){
+        // جلسة المدير العام لا تُستعاد إلا إذا كانت جلسة جوجل نفسها ما زالت
+        // قائمة ببريد المالك. بدون هذا الفحص يكفي تعديل localStorage للظهور كمدير.
+        const savedEmail=(window.$auth?.currentUser?.email||'').toLowerCase();
+        const ownerEmail=(window.SHAMS_CONFIG?.ownerEmail||'').toLowerCase();
+        const adminSessionValid = fresh?.role!=='admin' || (savedEmail && savedEmail===ownerEmail);
+
+        if(fresh&&fresh.status==='active'&&adminSessionValid){
           CURRENT_USER={...fresh,id:CURRENT_USER.id};
           showApp(true); // true = استعادة آخر صفحة
           ensureMyShift();
