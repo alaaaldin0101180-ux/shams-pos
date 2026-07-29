@@ -1935,6 +1935,43 @@ textarea.fc{resize:vertical;min-height:80px;}
               <button class="btn btn-danger btn-xs" onclick="clearCart()"><i class="fas fa-trash"></i> مسح</button>
             </div>
 
+            <!-- ═══ بيانات العميل والخصم — أعلى السلة ═══
+                 كانت ضمن الشريط السفلي الأفقي فتتزاحم خاناتها على الشاشات
+                 الصغيرة. هنا تأخذ عرض السلة كاملاً فلا تتداخل. -->
+            <div class="cart-customer">
+              <div class="csb-group-title" style="margin-bottom:8px;">
+                <i class="fas fa-user"></i> العميل (اختياري)
+              </div>
+
+              <div style="display:flex;gap:6px;align-items:center;margin-bottom:9px;">
+                <input class="fc" id="cs-customer" placeholder="ابحث بالاسم أو رقم الهاتف..." autocomplete="off"
+                       style="flex:1;min-width:0;font-size:12.5px;padding:8px 11px;"
+                       oninput="onCsCustomerInput(this.value)"
+                       onfocus="onCsCustomerFocus()"
+                       onkeydown="onCsCustomerKeydown(event)">
+                <button class="btn btn-ghost btn-sm" id="cs-cust-search-btn" onclick="pickCustomerForSale()"
+                        title="عرض كل العملاء" style="flex-shrink:0;"><i class="fas fa-search"></i></button>
+                <button class="btn btn-ghost btn-sm" onclick="togglePosAddCust()" title="إضافة عميل جديد سريع"
+                        style="flex-shrink:0;color:var(--green);border-color:var(--green);"><i class="fas fa-user-plus"></i></button>
+                <input type="hidden" id="cs-customer-id" value="">
+              </div>
+
+              <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;flex-wrap:wrap;">
+                <span style="font-size:11.5px;color:var(--text2);font-weight:600;white-space:nowrap;">خصم الفاتورة</span>
+                <input class="fc" id="ct-discount" type="number" min="0" value="0"
+                  oninput="if(this.value<0)this.value=0; calcCart()"
+                  style="flex:1;min-width:60px;padding:5px 8px;font-size:12px;text-align:center;">
+                <select class="fc" id="ct-discount-type" onchange="calcCart()"
+                  style="width:62px;flex-shrink:0;padding:5px 6px;font-size:12px;">
+                  <option value="fixed">ج.م</option>
+                  <option value="pct">%</option>
+                </select>
+              </div>
+
+              <input class="fc" id="cs-notes" placeholder="ملاحظات الفاتورة (اختياري)..."
+                     style="width:100%;font-size:11.5px;padding:6px 10px;">
+            </div>
+
             <!-- Items -->
             <div class="cart-items" id="cart-items">
               <div class="cart-empty">
@@ -1947,35 +1984,6 @@ textarea.fc{resize:vertical;min-height:80px;}
 
         <!-- ═══ شريط إجراءات الكاشير السفلي (Bottom Action Bar) ═══ -->
         <div class="cashier-bottombar" id="cashier-bottombar">
-
-          <!-- العميل + الخصم -->
-          <div class="csb-group" style="min-width:200px;">
-            <div class="csb-group-title"><i class="fas fa-user"></i> العميل (اختياري)</div>
-            <div class="fg" style="gap:0;">
-              <div style="display:flex;gap:6px;align-items:center;">
-                <input class="fc" id="cs-customer" placeholder="ابحث بالاسم أو رقم الهاتف..." autocomplete="off"
-                       style="flex:1;font-size:12px;padding:7px 10px;"
-                       oninput="onCsCustomerInput(this.value)"
-                       onfocus="onCsCustomerFocus()"
-                       onkeydown="onCsCustomerKeydown(event)">
-                <button class="btn btn-ghost btn-xs" id="cs-cust-search-btn" onclick="pickCustomerForSale()" title="عرض كل العملاء"><i class="fas fa-search"></i></button>
-                <button class="btn btn-ghost btn-xs" onclick="togglePosAddCust()" title="إضافة عميل جديد سريع" style="color:var(--green);border-color:var(--green);"><i class="fas fa-user-plus"></i></button>
-              </div>
-              <input type="hidden" id="cs-customer-id" value="">
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:11px;color:var(--text2);font-weight:600;white-space:nowrap;">خصم الفاتورة</span>
-              <input class="fc" id="ct-discount" type="number" min="0" value="0"
-                oninput="if(this.value<0)this.value=0; calcCart()" style="width:70px;padding:4px 8px;font-size:12px;text-align:center;">
-              <select class="fc" id="ct-discount-type" onchange="calcCart()" style="width:55px;padding:4px 6px;font-size:12px;">
-                <option value="fixed">ج.م</option>
-                <option value="pct">%</option>
-              </select>
-            </div>
-            <input class="fc" id="cs-notes" placeholder="ملاحظات الفاتورة (اختياري)..." style="font-size:11.5px;padding:5px 9px;">
-          </div>
-
-          <div class="csb-sep"></div>
 
           <!-- الإجماليات -->
           <div class="csb-group" style="flex:1;min-width:230px;">
@@ -8811,9 +8819,22 @@ async function completeSale(){
   }
   // المبلغ الذي يدخل الخزينة فعلياً في هذه العملية
   const paidNow = isCredit ? creditPaid : totals.total;
-  const cbId    = (isCredit&&creditPaid<=0) ? '' : (document.getElementById('cs-cashbox')?.value||'');
-  if(isCredit&&creditPaid>0&&!cbId){
-    toast('اختر الخزينة التي سيُودَع فيها المبلغ المدفوع مقدماً','error'); return;
+  const cbId = document.getElementById('cs-cashbox')?.value||'';
+
+  // الخزينة إلزامية في كل بيع — حتى البيع الآجل بلا دفعة مقدّمة، حتى تُنسب
+  // الفاتورة لخزينة معلومة عند التحصيل لاحقاً ولا تضيع في تقفيلة الوردية.
+  if(!cbId){
+    const sel=document.getElementById('cs-cashbox');
+    toast('اختر الخزينة أولاً — لا يمكن إتمام بيع بدون خزينة','error');
+    if(sel){
+      sel.focus();
+      // وميض أحمر يلفت النظر لمكان الخانة في الشريط السفلي
+      const prev=sel.style.borderColor;
+      sel.style.borderColor='var(--red)';
+      sel.style.boxShadow='0 0 0 3px var(--red-bg)';
+      setTimeout(()=>{ sel.style.borderColor=prev; sel.style.boxShadow=''; },1800);
+    }
+    return;
   }
   const balanceDue = Math.max(0, totals.total - paidNow);
 
@@ -9134,13 +9155,16 @@ function closeCustDrop(){
 
 function renderCustDrop(q){
   const input = document.getElementById('cs-customer'); if(!input) return;
-  const wrap  = input.closest('.fg'); if(!wrap) return;
+  // الحقل انتقل من الشريط السفلي إلى أعلى السلة، فنتعلّق بالحاوية الجديدة
+  const wrap  = input.closest('.cart-customer') || input.parentElement; if(!wrap) return;
+  wrap.style.position = 'relative';
   closeCustDrop();
   csCustMatches = findCustomerMatches(q);
 
   const drop = document.createElement('div');
   drop.id = 'cust-picker-drop';
-  drop.style.cssText = 'position:absolute;z-index:9999;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.25);max-height:230px;overflow-y:auto;width:280px;margin-top:2px;';
+  // تأخذ عرض الحاوية كاملاً بدل عرض ثابت، فلا تخرج عن السلة على الشاشات الصغيرة
+  drop.style.cssText = 'position:absolute;z-index:9999;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.25);max-height:230px;overflow-y:auto;left:16px;right:16px;margin-top:2px;';
 
   if(!csCustMatches.length){
     drop.innerHTML = `
@@ -9240,11 +9264,12 @@ document.addEventListener('click',e=>{
 function togglePosAddCust(){
   let pop=document.getElementById('pos-add-cust-pop');
   if(pop){ pop.remove(); return; }
-  const wrap=document.getElementById('cs-customer')?.closest('.csb-group')||document.body;
+  // الحاوية صارت أعلى السلة، والنافذة تنسدل لأسفل الحقل بدل أن تطلع فوقه
+  const wrap=document.getElementById('cs-customer')?.closest('.cart-customer')||document.body;
   wrap.style.position='relative';
   pop=document.createElement('div');
   pop.id='pos-add-cust-pop';
-  pop.style.cssText='position:absolute;bottom:calc(100% + 10px);right:0;width:260px;background:var(--card);border:1px solid var(--accent);border-radius:12px;padding:12px;z-index:9999;box-shadow:0 -8px 24px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:7px;';
+  pop.style.cssText='position:absolute;top:calc(100% - 6px);left:16px;right:16px;background:var(--card);border:1px solid var(--accent);border-radius:12px;padding:12px;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:7px;';
   pop.innerHTML=`
     <div style="font-size:12px;font-weight:700;color:var(--accent);"><i class="fas fa-user-plus"></i> إضافة عميل جديد</div>
     <input class="fc" id="pos-new-cust-name" placeholder="اسم العميل *" style="font-size:12px;">
