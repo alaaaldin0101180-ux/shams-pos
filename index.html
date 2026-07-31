@@ -27,19 +27,13 @@ window.SHAMS_CONFIG = {
   messagingSenderId: '393829195567',
   appId:             '1:393829195567:web:c80cce64f215d8e9b3cbda',
 
-  // نطاق داخلي للحسابات — ليس بريداً حقيقياً ولا يستقبل رسائل.
-  // اسم المستخدم «ahmed» يصير داخلياً ahmed@staff.shams-pos.internal
-  // فيقبله Firebase الذي لا يفهم إلا البريد، والموظف لا يرى ذلك إطلاقاً.
-  staffDomain: 'staff.shams-pos.internal',
-
   // المسار الجذر داخل القاعدة. تغييره يعزل بيانات هذه النسخة تماماً،
   // ويسمح بتشغيل أكثر من محل على نفس القاعدة عند الحاجة.
   dbPath: 'shams_v1',
 
-  // بريد المالك — هو وحده من يدخل بحساب جوجل على حساب المدير العام.
-  // نفس القيمة يجب أن تُكتب في قواعد Firebase، فالواجهة تمنع بالخطأ
-  // والقواعد تمنع بالقصد.
-  ownerEmail: 'alaaaldin0101180@gmail.com',
+  // كلمة مرور المدير العام الافتراضية — تُزرع مرة واحدة على قاعدة فارغة.
+  // غيّرها من «الإعدادات ← الأمان» قبل التسليم للمحل.
+  defaultAdminPassword: 'admin1234',
 
   // اسم النظام كما يظهر في الشاشة وعنوان الصفحة
   appName: 'الشمس | Shams',
@@ -59,10 +53,8 @@ window._fbTimeout = setTimeout(() => {
 <script type="module">
   try {
     const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
-    const { initializeApp: initApp2, deleteApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
     const { getDatabase, ref, set, push, update, remove, onValue, runTransaction } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js");
-    const { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged,
-            signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword }
+    const { getAuth, signInAnonymously, signOut, onAuthStateChanged }
       = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
 
     const fbConfig = {
@@ -83,31 +75,13 @@ window._fbTimeout = setTimeout(() => {
     window.$runTransaction = runTransaction;
 
     window.$auth = auth;
-    window.$signOutFb    = () => signOut(auth);
-    window.$onAuthChange = cb => onAuthStateChanged(auth, cb);
-    window.$signInEmail  = (email, pass) => signInWithEmailAndPassword(auth, email, pass);
-    window.$updateMyPassword = pass => updatePassword(auth.currentUser, pass);
-    window.$signInGoogle = () => {
-      const provider = new GoogleAuthProvider();
-      // نطلب اختيار الحساب في كل مرة حتى لا يدخل بحساب سبق تسجيله على الجهاز
-      provider.setCustomParameters({ prompt:'select_account' });
-      return signInWithPopup(auth, provider);
-    };
+    window.$signOutFb = () => signOut(auth);
 
-    // إنشاء حساب موظف على نسخة تطبيق منفصلة.
-    // createUserWithEmailAndPassword يسجّل الدخول بالحساب الجديد افتراضياً،
-    // فلو نُفّذ على التطبيق الرئيسي لطُرد المدير من جلسته مع كل موظف يضيفه.
-    window.$createStaffAccount = async (email, password) => {
-      const tmpApp  = initApp2(fbConfig, 'staff-creator-' + Date.now());
-      const tmpAuth = getAuth(tmpApp);
-      try {
-        const cred = await createUserWithEmailAndPassword(tmpAuth, email, password);
-        return cred.user.uid;
-      } finally {
-        await signOut(tmpAuth).catch(()=>{});
-        await deleteApp(tmpApp).catch(()=>{});
-      }
-    };
+    // جلسة مجهولة صامتة: لا يراها المستخدم ولا تطلب منه شيئاً، لكنها تجعل
+    // قواعد قاعدة البيانات قادرة على اشتراط auth != null فلا تُقرأ البيانات
+    // من الإنترنت مباشرة. الدخول الفعلي للنظام باسم مستخدم وكلمة مرور.
+    try { if(!auth.currentUser) await signInAnonymously(auth); }
+    catch(e){ console.warn('تعذّر تسجيل الدخول المجهول:', e.code||e.message); }
 
     window._fbAvailable = true;
     clearTimeout(window._fbTimeout);
@@ -1119,27 +1093,6 @@ textarea.fc{resize:vertical;min-height:80px;}
         <i class="fas fa-arrow-left"></i> التالي
       </button>
 
-      <!-- فاصل -->
-      <div style="display:flex;align-items:center;gap:10px;margin:18px 0 14px;">
-        <div style="flex:1;height:1px;background:var(--border);"></div>
-        <span style="font-size:11px;color:var(--text3);">أو</span>
-        <div style="flex:1;height:1px;background:var(--border);"></div>
-      </div>
-
-      <!-- دخول المدير العام بحساب جوجل -->
-      <button class="login-btn" id="btn-google" onclick="doGoogleLogin()"
-              style="background:#fff;color:#3c4043;border:1px solid #dadce0;display:flex;align-items:center;justify-content:center;gap:10px;">
-        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-          <path fill="#EA4335" d="M24 9.5c3.54 0 6.7 1.22 9.2 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-        </svg>
-        الدخول كمدير عام بحساب جوجل
-      </button>
-      <div style="font-size:10.5px;color:var(--text3);text-align:center;margin-top:8px;line-height:1.7;">
-        مخصّص لحساب المالك وحده — باقي الموظفين يدخلون باسم المستخدم وكلمة المرور
-      </div>
     </div>
 
     <!-- ===== STEP 2: كلمة المرور ===== -->
@@ -4042,9 +3995,9 @@ textarea.fc{resize:vertical;min-height:80px;}
         والخزائن والحركات نهائياً من السحابة. المستخدمون والفروع والإعدادات لن تُحذف.
         <br><strong>لا يمكن التراجع عن هذه العملية.</strong>
       </div>
-      <div style="background:var(--card2);border-radius:8px;padding:9px 12px;font-size:11.5px;color:var(--text2);margin-bottom:12px;">
-        <i class="fas fa-shield-alt" style="color:var(--green);"></i>
-        هذه العملية مقصورة على حساب جوجل الخاص بالمالك — وقواعد قاعدة البيانات ترفضها من أي حساب آخر.
+      <div class="fg mb-3">
+        <label>كلمة مرور حسابك (أدمن) <span class="req">*</span></label>
+        <input class="fc" id="ca-pass" type="password" placeholder="كلمة المرور" autocomplete="off">
       </div>
       <div class="fg mb-3">
         <label>اكتب <strong style="color:var(--red);">مسح نهائي</strong> للتأكيد <span class="req">*</span></label>
@@ -6121,160 +6074,84 @@ document.addEventListener('click',e=>{
 });
 
 // ============================================================
-// AUTH — أسماء المستخدمين وحسابات Firebase
+// AUTH — الدخول باسم مستخدم وكلمة مرور من قاعدة البيانات
 // ============================================================
-// Firebase لا يفهم إلا البريد، فنحوّل اسم المستخدم إلى بريد داخلي غير
-// حقيقي. وحتى تتمكّن شاشة الدخول من الترجمة قبل تسجيل الدخول (والقواعد
-// تمنع القراءة قبله)، نحتفظ بفهرس عام صغير خارج مسار البيانات
-// يحمل أسماء المستخدمين فقط — بلا كلمات مرور ولا أي بيانات تجارية.
-function usernameKey(u){
-  return String(u||'').trim().toLowerCase().replace(/[.#$\[\]\/\s]/g,'_');
-}
-function staffEmailFor(u){
-  return usernameKey(u)+'@'+(window.SHAMS_CONFIG?.staffDomain||'staff.local');
+// كلمة المرور لا تُخزَّن كما هي ولا بترميز يُفكّ. تُخزَّن بصمتها
+// (SHA-256) مع «ملح» عشوائي لكل مستخدم، فمن يقرأ القاعدة يرى بصمة لا
+// تدلّ على الكلمة، والملح يمنع كشف تطابق الكلمة بين مستخدمين.
+// النظام السابق كان يستخدم btoa، وهو ترميز يُفكّ في لحظة لا تشفير.
+
+function randomSalt(){
+  const a=new Uint8Array(16);
+  crypto.getRandomValues(a);
+  return [...a].map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
-let PUBLIC_USERNAMES={};   // { key: {name, role} } لعرضها في شاشة الدخول
+async function hashPassword(password, salt){
+  const buf=new TextEncoder().encode(salt+':'+password);
+  const dig=await crypto.subtle.digest('SHA-256', buf);
+  return [...new Uint8Array(dig)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 
-function loadPublicUsernames(){
-  if(!window.$onValue||!window.$db) return;
+// حقول كلمة المرور كما تُحفظ في سجل المستخدم
+async function buildPasswordFields(password){
+  const salt=randomSalt();
+  return { passSalt:salt, passHash:await hashPassword(password,salt), password:null };
+}
+
+// يتحقق من كلمة المرور، ويقبل الحسابات القديمة المخزَّنة بـ btoa
+// حتى لا يُقفل الباب في وجه من أُنشئ حسابه قبل هذا التغيير
+async function verifyPassword(userRec, password){
+  if(!userRec) return false;
+  if(userRec.passHash && userRec.passSalt){
+    return await hashPassword(password, userRec.passSalt) === userRec.passHash;
+  }
+  if(userRec.password){
+    try{ return userRec.password === btoa(password); }catch(e){ return false; }
+  }
+  return false;
+}
+
+// يرقّي الحساب القديم إلى التجزئة بعد أول دخول ناجح
+async function upgradeLegacyPassword(uid, userRec, password){
+  if(userRec.passHash || !userRec.password) return;
   try{
-    window.$onValue(window.$ref(window.$db,'usernames'), snap=>{
-      PUBLIC_USERNAMES=snap.val()||{};
-      // نغذّي قائمة الاقتراحات بنفس شكل سجلات المستخدمين
-      buildUserGrid(Object.fromEntries(Object.entries(PUBLIC_USERNAMES)
-        .filter(([,v])=>v&&v.status!=='disabled')
-        .map(([k,v])=>[k,{username:k,name:v.name||k,role:v.role||'cashier',status:'active'}])));
-    }, err=>console.warn('تعذّر قراءة فهرس المستخدمين',err?.code));
-  }catch(e){ console.warn('loadPublicUsernames',e); }
-}
-
-// يربط جلسة Firebase بسجل المستخدم في قاعدة البيانات ويفتح البرنامج
-async function resumeSessionFor(fbUser){
-  const email=(fbUser.email||'').toLowerCase();
-  const owner=(window.SHAMS_CONFIG?.ownerEmail||'').toLowerCase();
-  let entry;
-
-  if(email && email===owner){
-    // المالك: يُربط بسجل المدير العام
-    entry=Object.entries(S.users||{}).find(([,u])=>u.role==='admin');
-  }else{
-    // الموظف: يُربط بمعرّف حسابه في Firebase وحده
-    entry=Object.entries(S.users||{}).find(([,u])=>u.authUid===fbUser.uid);
-  }
-
-  if(!entry){
-    await window.$signOutFb().catch(()=>{});
-    showLoginErr('هذا الحساب غير مربوط بأي مستخدم في النظام');
-    document.getElementById('loading').classList.add('out');
-    document.getElementById('login-screen').style.display='flex';
-    return;
-  }
-
-  const [uid,user]=entry;
-  if(user.status!=='active'){
-    await window.$signOutFb().catch(()=>{});
-    showLoginErr('هذا الحساب موقوف — راجع المدير العام');
-    document.getElementById('loading').classList.add('out');
-    document.getElementById('login-screen').style.display='flex';
-    return;
-  }
-
-  CURRENT_USER={...user, id:uid, email:email||'', authUid:fbUser.uid};
-  document.getElementById('loading').classList.add('out');
-  showApp(true);
-  dbUpdate('users/'+uid,{lastLogin:new Date().toISOString()}).catch(()=>{});
-  _shiftClosedByAdmin=false;
-  ensureMyShift();
-}
-
-// ============================================================
-// AUTH — دخول المدير العام بحساب جوجل
-// ============================================================
-// المالك وحده يدخل على حساب المدير العام. الفحص هنا يمنع الخطأ،
-// وقواعد Firebase تمنع القصد: أي كتابة على المستخدمين أو الإعدادات
-// مرفوضة من السيرفر ما لم يكن بريد الجلسة هو بريد المالك.
-async function doGoogleLogin(){
-  const btn=document.getElementById('btn-google');
-  const ownerEmail=(window.SHAMS_CONFIG?.ownerEmail||'').toLowerCase();
-  clearLoginErr();
-
-  if(typeof window.$signInGoogle!=='function'){
-    showLoginErr('خدمة الدخول بجوجل غير متاحة — تحقق من الاتصال بالإنترنت');
-    return;
-  }
-  if(btn){ btn.disabled=true; btn.style.opacity='.6'; }
-
-  try{
-    const cred=await window.$signInGoogle();
-    const email=(cred?.user?.email||'').toLowerCase();
-
-    if(!email || email!==ownerEmail){
-      // حساب غير مصرّح له: تُنهى جلسته فوراً ولا يُقرأ شيء من القاعدة
-      await window.$signOutFb().catch(()=>{});
-      showLoginErr(`الحساب ${email||'المستخدم'} غير مصرّح له بالدخول كمدير عام`);
-      return;
-    }
-    // مستمع onAuthChange يتولّى ربط الجلسة وفتح البرنامج
-    toast('تم التحقق — جارٍ فتح النظام...','info');
-
-  }catch(e){
-    const code=e?.code||'';
-    if(code==='auth/popup-closed-by-user'||code==='auth/cancelled-popup-request'){
-      clearLoginErr();                       // ألغى المستخدم بنفسه — لا رسالة خطأ
-    }else if(code==='auth/popup-blocked'){
-      showLoginErr('المتصفح منع النافذة المنبثقة — اسمح بها لهذا الموقع ثم أعد المحاولة');
-    }else if(code==='auth/operation-not-allowed'){
-      showLoginErr('دخول جوجل غير مفعّل في إعدادات Firebase');
-    }else if(code==='auth/unauthorized-domain'){
-      showLoginErr('هذا النطاق غير مُصرّح به في Firebase — أضفه في Authentication ← Settings ← Authorized domains');
-    }else{
-      showLoginErr('تعذّر الدخول بجوجل: '+(e?.message||code));
-    }
-    console.warn('Google login failed',e);
-  }finally{
-    if(btn){ btn.disabled=false; btn.style.opacity='1'; }
-  }
+    await dbUpdate('users/'+uid, await buildPasswordFields(password));
+  }catch(e){ console.warn('تعذّرت ترقية كلمة المرور',e); }
 }
 
 // ============================================================
 // AUTH — LOGIN
 // ============================================================
-// كلمة المرور لم تعد تُقارَن عندنا — Firebase هو من يتحقق منها.
-// لم تعد كلمات المرور تُخزَّن في قاعدة البيانات إطلاقاً.
 async function doLogin(){
   if(!loginSelectedUser){ showLoginErr('اختر مستخدماً أولاً'); return; }
   const pass=document.getElementById('login-pass').value||'';
   clearLoginErr();
   if(!pass){ showLoginErr('أدخل كلمة المرور'); return; }
 
-  const uname=loginSelectedUser.username||loginSelectedUser.id;
-  const info=PUBLIC_USERNAMES[usernameKey(uname)];
-
-  if(info?.role==='admin' || loginSelectedUser.role==='admin'){
-    showLoginErr('حساب المدير العام يُفتح بحساب جوجل فقط — استخدم الزر بالأسفل');
-    return;
-  }
-  if(info?.status==='disabled'){ showLoginErr('هذا الحساب موقوف — راجع المدير العام'); return; }
+  const uid=loginSelectedUser.id;
+  const fresh=(S.users||{})[uid];
+  if(!fresh){ showLoginErr('الحساب غير موجود'); return; }
+  if(fresh.status!=='active'){ showLoginErr('هذا الحساب موقوف — راجع المدير العام'); return; }
 
   const btn=document.querySelector('#login-step-2 .login-btn');
   if(btn){ btn.disabled=true; btn.style.opacity='.6'; }
   try{
-    await window.$signInEmail(staffEmailFor(uname), pass);
-    // مستمع onAuthChange يتولّى الباقي
+    if(!await verifyPassword(fresh, pass)){ showLoginErr('كلمة المرور غير صحيحة'); return; }
+    await upgradeLegacyPassword(uid, fresh, pass);
+
+    CURRENT_USER={...fresh, id:uid};
+    // لا نُبقي بصمة الكلمة في الجلسة ولا في التخزين المحلي
+    delete CURRENT_USER.passHash; delete CURRENT_USER.passSalt; delete CURRENT_USER.password;
+    localStorage.setItem('shams-user', JSON.stringify(CURRENT_USER));
+
+    dbUpdate('users/'+uid,{ lastLogin:new Date().toISOString() }).catch(()=>{});
+    showApp();
+    _shiftClosedByAdmin=false;
+    ensureMyShift();
+    toast(`أهلاً ${fresh.name||fresh.username} 👋`,'success');
   }catch(e){
-    const code=e?.code||'';
-    if(code==='auth/invalid-credential'||code==='auth/wrong-password'||code==='auth/user-not-found'){
-      showLoginErr('اسم المستخدم أو كلمة المرور غير صحيحة');
-    }else if(code==='auth/too-many-requests'){
-      showLoginErr('محاولات كثيرة خاطئة — انتظر قليلاً ثم أعد المحاولة');
-    }else if(code==='auth/user-disabled'){
-      showLoginErr('هذا الحساب موقوف — راجع المدير العام');
-    }else if(code==='auth/network-request-failed'){
-      showLoginErr('تعذّر الاتصال بالإنترنت');
-    }else{
-      showLoginErr('تعذّر الدخول: '+(e?.message||code));
-    }
+    showLoginErr('تعذّر الدخول: '+(e?.message||e));
   }finally{
     if(btn){ btn.disabled=false; btn.style.opacity='1'; }
   }
@@ -6763,50 +6640,24 @@ async function saveUser(){
   const dup=Object.entries(S.users||{}).find(([id,u])=>u.username===username&&id!==editingUser);
   if(dup){ toast('اسم المستخدم مستخدم مسبقاً','error'); return; }
 
-  if(role==='admin' && !editingUser){
-    toast('حساب المدير العام واحد فقط ويدخل بحساب جوجل','error'); return;
-  }
-
-  // كلمة المرور لا تُخزَّن عندنا إطلاقاً — Firebase Authentication يتولّاها
   const data={username,name,role,status,branch:branch||null,updatedAt:new Date().toISOString()};
 
   try{
     if(editingUser){
+      // كلمة مرور جديدة عند التعديل؟ تُجزَّأ وتُستبدل
+      if(pass) Object.assign(data, await buildPasswordFields(pass));
       await dbUpdate('users/'+editingUser,data);
-      await syncUsernameIndex(username,{name,role,status});
-      if(pass) toast('لتغيير كلمة المرور استخدم زر «إعادة تعيين كلمة المرور»','info');
     } else {
-      // ننشئ حساب Firebase حقيقياً على نسخة تطبيق منفصلة حتى لا تُستبدل
-      // جلسة المدير بجلسة الموظف الجديد
-      const authUid=await window.$createStaffAccount(staffEmailFor(username), pass);
-      data.authUid   =authUid;
+      Object.assign(data, await buildPasswordFields(pass));
       data.createdAt =new Date().toISOString();
       data.lastLogin =null;
-      // مفتاح السجل هو معرّف الحساب نفسه، فتصير القواعد قادرة على ربطهما
-      await dbSet('users/'+authUid,data);
-      await syncUsernameIndex(username,{name,role,status});
+      await dbSet('users/'+uid(),data);
     }
     closeModal('modal-user');
-    toast(editingUser?'تم تحديث المستخدم ✅':'تم إنشاء الحساب ✅');
-  }catch(e){
-    const code=e?.code||'';
-    if(code==='auth/email-already-in-use')      toast('اسم المستخدم محجوز مسبقاً — اختر غيره','error');
-    else if(code==='auth/weak-password')        toast('كلمة المرور ضعيفة — 6 أحرف على الأقل','error');
-    else if(code==='auth/operation-not-allowed')toast('الدخول بالبريد وكلمة المرور غير مفعّل في Firebase','error');
-    else toast('خطأ: '+(e?.message||code),'error');
-  }
-}
-
-// الفهرس العام لأسماء المستخدمين — يحمل الاسم والدور والحالة فقط،
-// بلا كلمات مرور ولا أي بيانات تجارية، وهو الوحيد المقروء قبل الدخول.
-async function syncUsernameIndex(username, info){
-  const key=usernameKey(username);
-  if(!key) return;
-  try{
-    await window.$set(window.$ref(window.$db,'usernames/'+key), {
-      name:info.name||key, role:info.role||'cashier', status:info.status||'active',
-    });
-  }catch(e){ console.warn('تعذّر تحديث فهرس المستخدمين',e?.code||e); }
+    toast(editingUser
+      ? (pass?'تم تحديث المستخدم وكلمة المرور ✅':'تم تحديث المستخدم ✅')
+      : 'تم إنشاء الحساب ✅');
+  }catch(e){ toast('خطأ: '+(e?.message||e),'error'); }
 }
 
 async function delUser(id){
@@ -6819,9 +6670,6 @@ async function delUser(id){
   if(!ok) return;
   try{
     await dbRemove('users/'+id);
-    // نُبقي المفتاح في الفهرس بحالة «موقوف» بدل حذفه، فلا يُعاد استخدام
-    // نفس الاسم لحساب Firebase آخر ما دام الحساب القديم قائماً هناك
-    if(u?.username) await syncUsernameIndex(u.username,{name:u.name,role:u.role,status:'disabled'});
     toast('تم حذف المستخدم — لم يعد يستطيع الدخول');
   }
   catch(e){ toast('خطأ: '+e.message,'error'); }
@@ -7148,24 +6996,18 @@ async function changeMyPassword(){
   if(newP.length<6){ toast('كلمة المرور الجديدة 6 أحرف على الأقل','error'); return; }
   if(newP!==confP){ toast('كلمتا المرور غير متطابقتين','error'); return; }
 
-  if(CURRENT_USER?.role==='admin'){
-    toast('حساب المدير العام يُدار من جوجل — غيّر كلمة مروره من إعدادات حسابك هناك','info');
-    return;
-  }
+  const fresh=(S.users||{})[CURRENT_USER?.id];
+  if(!fresh){ toast('تعذّر العثور على حسابك','error'); return; }
 
   try{
-    // نتحقق من كلمة المرور الحالية بإعادة تسجيل الدخول، ثم نغيّرها عند Firebase.
-    // كلمة المرور لا تمرّ على قاعدة بياناتنا ولا تُخزَّن فيها.
-    await window.$signInEmail(staffEmailFor(CURRENT_USER.username), oldP);
-    await window.$updateMyPassword(newP);
+    if(!await verifyPassword(fresh, oldP)){ toast('كلمة المرور الحالية غير صحيحة','error'); return; }
+    await dbUpdate('users/'+CURRENT_USER.id, {
+      ...(await buildPasswordFields(newP)),
+      updatedAt:new Date().toISOString(),
+    });
     ['sec-old-pass','sec-new-pass','sec-confirm-pass'].forEach(id=>{ const el=document.getElementById(id); if(el)el.value=''; });
     toast('تم تغيير كلمة المرور بنجاح ✅');
-  }catch(e){
-    const code=e?.code||'';
-    if(code==='auth/invalid-credential'||code==='auth/wrong-password') toast('كلمة المرور الحالية غير صحيحة','error');
-    else if(code==='auth/weak-password') toast('كلمة المرور الجديدة ضعيفة','error');
-    else toast('خطأ: '+(e?.message||code),'error');
-  }
+  }catch(e){ toast('خطأ: '+(e?.message||e),'error'); }
 }
 
 // ============================================================
@@ -7185,24 +7027,24 @@ function togglePass(inputId,btn){
 async function initDefaultData(){
   // Admin user
   const users=S.users||{};
-  // حساب المدير العام: لا كلمة مرور له — يُفتح ببريد المالك عبر جوجل وحده.
-  // يُزرع أول مرة يدخل فيها المالك، لأن القواعد لا تسمح بالكتابة لغيره.
+  // حساب المدير العام الافتراضي — يُزرع مرة واحدة على قاعدة فارغة.
+  // كلمة المرور تُخزَّن مجزَّأة كغيرها، ويجب تغييرها قبل التسليم.
   const adminExists=Object.values(users).some(u=>u.role==='admin');
-  const meIsOwner=(window.$auth?.currentUser?.email||'').toLowerCase()
-                  ===(window.SHAMS_CONFIG?.ownerEmail||'').toLowerCase();
-  if(!adminExists && meIsOwner){
-    await dbSet('users/'+window.$auth.currentUser.uid,{
-      username:'admin',
-      name:'المدير العام',
-      role:'admin',
-      status:'active',
-      hidden:false,
-      branch:null,
-      email:window.$auth.currentUser.email,
-      authUid:window.$auth.currentUser.uid,
-      createdAt:new Date().toISOString(),
-      lastLogin:null,
-    }).catch(e=>console.warn('تعذّر زرع حساب المدير',e));
+  if(!adminExists){
+    try{
+      await dbSet('users/admin-root',{
+        username:'admin',
+        name:'المدير العام',
+        role:'admin',
+        status:'active',
+        hidden:false,
+        branch:null,
+        ...(await buildPasswordFields(window.SHAMS_CONFIG?.defaultAdminPassword||'admin1234')),
+        mustChangePassword:true,   // نُذكّر المالك بتغييرها عند أول دخول
+        createdAt:new Date().toISOString(),
+        lastLogin:null,
+      });
+    }catch(e){ console.warn('تعذّر زرع حساب المدير',e); }
   }
 
   // Main branch
@@ -7275,26 +7117,37 @@ window.addEventListener('fbReady',()=>{
   if(cs){ cs.textContent='متصل'; cs.classList.remove('offline'); }
   setConnState(navigator.onLine);
 
-  // مصدر الحقيقة لحالة الدخول
-  window.$onAuthChange(async fbUser=>{
-    if(!fbUser){
-      // لا جلسة: شاشة الدخول، ونحمّل فهرس أسماء المستخدمين العام
-      CURRENT_USER=null;
-      document.getElementById('loading').classList.add('out');
-      document.getElementById('login-screen').style.display='flex';
-      document.querySelector('.layout').style.display='none';
-      loadPublicUsernames();
-      return;
-    }
+  // الجلسة المجهولة تُفتح صامتةً في طبقة Firebase، فنربط المستمعات مباشرة
+  // ثم نقرّر: جلسة محفوظة نستأنفها، أو شاشة دخول.
+  (async()=>{
     try{
       await attachDataListeners();
-      await resumeSessionFor(fbUser);
+      document.getElementById('loading').classList.add('out');
+
+      if(!CURRENT_USER && checkSession()){
+        const fresh=(S.users||{})[CURRENT_USER?.id];
+        if(fresh && fresh.status==='active'){
+          CURRENT_USER={...fresh, id:CURRENT_USER.id};
+          delete CURRENT_USER.passHash; delete CURRENT_USER.passSalt; delete CURRENT_USER.password;
+          showApp(true);            // true = استعادة آخر صفحة
+          ensureMyShift();
+          return;
+        }
+        // الحساب حُذف أو أُوقف بعد آخر دخول
+        localStorage.removeItem('shams-user');
+        localStorage.removeItem('shams-last-page');
+        CURRENT_USER=null;
+      }
+      if(!CURRENT_USER){
+        document.getElementById('login-screen').style.display='flex';
+        document.querySelector('.layout').style.display='none';
+      }
     }catch(e){
-      console.warn('تعذّر استئناف الجلسة',e);
+      console.warn('تعذّر الإقلاع',e);
       document.getElementById('loading').classList.add('out');
       document.getElementById('login-screen').style.display='flex';
     }
-  });
+  })();
 });
 
 // كل مستمعات البيانات في مكان واحد — تُربط مرة واحدة بعد المصادقة
@@ -11141,10 +10994,11 @@ const CLEARABLE_STORES=['products','customers','sales','purchaseOrders','expense
 
 function openClearAllModal(){
   if(CURRENT_USER?.role!=='admin'){ toast('هذه العملية متاحة للأدمن فقط','error'); return; }
+  document.getElementById('ca-pass').value='';
   document.getElementById('ca-confirm').value='';
   document.getElementById('ca-err').style.display='none';
   openModal('modal-clear-all');
-  setTimeout(()=>document.getElementById('ca-confirm')?.focus(),200);
+  setTimeout(()=>document.getElementById('ca-pass')?.focus(),200);
 }
 
 async function verifyClearAll(){
@@ -11153,15 +11007,14 @@ async function verifyClearAll(){
   err.style.display='none';
 
   if(CURRENT_USER?.role!=='admin'){ fail('هذه العملية متاحة للأدمن فقط'); return; }
+  const pass=document.getElementById('ca-pass')?.value||'';
   const conf=(document.getElementById('ca-confirm').value||'').trim();
+  if(!pass){ fail('أدخل كلمة مرور حسابك'); return; }
   if(conf!=='مسح نهائي'){ fail('اكتب عبارة «مسح نهائي» بالضبط للتأكيد'); return; }
 
-  // لم تعد هناك كلمة مرور مخزّنة نقارن بها. التحقق الآن أقوى: الجلسة نفسها
-  // يجب أن تكون جلسة جوجل ببريد المالك، والقواعد ترفض المسح من غيره.
-  const email=(window.$auth?.currentUser?.email||'').toLowerCase();
-  if(!email || email!==(window.SHAMS_CONFIG?.ownerEmail||'').toLowerCase()){
-    fail('هذه العملية تتطلب الدخول بحساب جوجل الخاص بالمالك'); return;
-  }
+  // تحقق مزدوج: كلمة مرور الأدمن نفسه + عبارة التأكيد
+  const me=(S.users||{})[CURRENT_USER?.id];
+  if(!await verifyPassword(me, pass)){ fail('كلمة المرور غير صحيحة'); return; }
 
   if(!OM.isOnline || !window._fbAvailable){ fail('لا يمكن تنفيذ المسح وأنت أوف لاين — اتصل بالإنترنت أولاً'); return; }
 
