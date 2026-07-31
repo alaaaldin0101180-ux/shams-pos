@@ -2149,6 +2149,14 @@ textarea.fc{resize:vertical;min-height:80px;}
                 <label>الفرع</label>
                 <select class="fc" id="exp-branch"><option value="">كل الفروع</option></select>
               </div>
+              <div class="fg">
+                <label>الخزينة <span class="req">*</span></label>
+                <select class="fc" id="exp-cashbox"><option value="">-- اختر الخزينة --</option></select>
+              </div>
+            </div>
+            <div style="font-size:11.5px;color:var(--text2);background:var(--card2);border-radius:8px;padding:8px 11px;margin-bottom:12px;">
+              <i class="fas fa-arrow-circle-down" style="color:var(--red);"></i>
+              يُخصم المبلغ من الخزينة المختارة ويظهر في حركاتها وفي تقفيلة الوردية.
             </div>
             <button class="btn btn-primary" onclick="saveExpense()"><i class="fas fa-plus"></i> إضافة</button>
           </div>
@@ -3864,6 +3872,28 @@ textarea.fc{resize:vertical;min-height:80px;}
           <div class="cart-total-row grand"><span>الإجمالي</span><span id="po-total">0.00</span></div>
         </div>
       </div>
+
+      <!-- ═══ الدفع للمورد ═══
+           بدون هذه الحقول كان أمر الشراء لا يحفظ balance إطلاقاً، فيظل
+           دين المورد صفراً مهما اشترى المحل، ولا يظهر في صفحة الديون. -->
+      <div class="sec-title mb-3" style="margin-top:16px;">
+        <div class="sec-dot" style="background:var(--yellow)"></div>الدفع للمورد
+      </div>
+      <div class="form-row form-row-3 mb-3">
+        <div class="fg">
+          <label>المدفوع الآن</label>
+          <input class="fc" id="po-paid" type="number" min="0" step="0.01" value="0"
+                 oninput="calcPOTotals()" placeholder="0 = آجل بالكامل">
+        </div>
+        <div class="fg">
+          <label>الخزينة <span style="font-size:10px;color:var(--text3);">(عند الدفع)</span></label>
+          <select class="fc" id="po-cashbox"><option value="">-- اختر الخزينة --</option></select>
+        </div>
+        <div class="fg">
+          <label>المتبقي على المحل</label>
+          <div class="fc" id="po-balance" style="background:var(--red-bg);color:var(--red);font-weight:800;">0.00</div>
+        </div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('modal-po')">إلغاء</button>
@@ -4695,6 +4725,7 @@ textarea.fc{resize:vertical;min-height:80px;}
         </div>
         <!-- أزرار الإجراءات -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" id="cs-stmt-btn"><i class="fas fa-file-invoice-dollar"></i> كشف حساب شامل</button>
           <button class="btn btn-ghost btn-sm" id="cs-edit-btn"><i class="fas fa-edit"></i> تعديل البيانات</button>
           <button class="btn btn-success btn-sm" id="cs-pay-btn" style="display:none;"><i class="fas fa-hand-holding-usd"></i> تسديد الدين</button>
           <button class="btn btn-primary btn-sm" id="cs-ret-btn"><i class="fas fa-undo-alt"></i> مرتجع جديد</button>
@@ -4766,7 +4797,7 @@ textarea.fc{resize:vertical;min-height:80px;}
     <div class="form-row mb-3">
       <div class="fg"><label>مبلغ السداد *</label><input class="fc" id="pd-amount" type="number" placeholder="0.00" step="0.01" min="0.01"></div>
     </div>
-    <div class="form-row mb-3">
+    <div class="form-row form-row-2 mb-3">
       <div class="fg"><label>طريقة الدفع</label>
         <select class="fc" id="pd-method">
           <option value="cash">نقدي</option>
@@ -4775,7 +4806,12 @@ textarea.fc{resize:vertical;min-height:80px;}
           <option value="check">شيك</option>
         </select>
       </div>
+      <div class="fg">
+        <label>الخزينة <span class="req">*</span></label>
+        <select class="fc" id="pd-cashbox"><option value="">-- اختر الخزينة --</option></select>
+      </div>
     </div>
+    <div id="pd-cashbox-hint" style="font-size:11.5px;color:var(--text2);background:var(--card2);border-radius:8px;padding:8px 11px;margin-bottom:12px;line-height:1.7;"></div>
     <div class="form-row">
       <div class="fg"><label>ملاحظات</label><input class="fc" id="pd-notes" placeholder="ملاحظة اختيارية"></div>
     </div>
@@ -4955,6 +4991,44 @@ textarea.fc{resize:vertical;min-height:80px;}
 </div>
 
 <!-- =============================================
+     MODAL: كشف حساب (عميل / مورد)
+============================================= -->
+<div class="overlay" id="modal-statement">
+  <div class="modal xl">
+    <div class="modal-head">
+      <h3><i class="fas fa-file-invoice-dollar" style="color:var(--accent);"></i> <span id="stmt-title">كشف حساب</span></h3>
+      <button class="close-btn" onclick="closeModal('modal-statement')"><i class="fas fa-times"></i></button>
+    </div>
+
+    <!-- شريط الفترة -->
+    <div style="padding:12px 22px;border-bottom:1px solid var(--border);display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="fg" style="min-width:140px;">
+        <label style="font-size:11px;">من تاريخ</label>
+        <input type="date" class="fc" id="stmt-from" onchange="renderStatement()">
+      </div>
+      <div class="fg" style="min-width:140px;">
+        <label style="font-size:11px;">إلى تاريخ</label>
+        <input type="date" class="fc" id="stmt-to" onchange="renderStatement()">
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-ghost btn-sm" onclick="setStmtRange('month')">هذا الشهر</button>
+        <button class="btn btn-ghost btn-sm" onclick="setStmtRange('year')">هذه السنة</button>
+        <button class="btn btn-ghost btn-sm" onclick="setStmtRange('all')">كل الفترات</button>
+      </div>
+    </div>
+
+    <div class="modal-body" id="stmt-body"></div>
+
+    <div class="modal-foot" style="flex-wrap:wrap;gap:7px;">
+      <button class="btn btn-ghost" onclick="closeModal('modal-statement')">إغلاق</button>
+      <button class="btn btn-ghost" onclick="exportStatementExcel()"><i class="fas fa-file-excel"></i> تصدير Excel</button>
+      <button class="btn btn-ghost" onclick="printNodeClean('stmt-body','كشف حساب')"><i class="fas fa-print"></i> طباعة</button>
+      <button class="btn btn-success" id="stmt-pay-btn"><i class="fas fa-hand-holding-usd"></i> تسجيل دفعة</button>
+    </div>
+  </div>
+</div>
+
+<!-- =============================================
      MODAL: تفاصيل مرتجع
 ============================================= -->
 <div class="overlay" id="modal-ret-view">
@@ -4973,7 +5047,7 @@ textarea.fc{resize:vertical;min-height:80px;}
 
 <script>
 // ============================================================
-const S = { users:{}, branches:{}, settings:{}, returns:{}, customers:{}, cashboxes:{}, cashboxLog:{}, stockTransfers:{}, lossRecords:{}, warehouses:{}, products:{}, categories:{}, suppliers:{}, purchaseOrders:{}, sales:{}, expenses:{}, movements:{}, shifts:{} };
+const S = { users:{}, branches:{}, settings:{}, returns:{}, customers:{}, cashboxes:{}, cashboxLog:{}, stockTransfers:{}, lossRecords:{}, warehouses:{}, products:{}, categories:{}, suppliers:{}, purchaseOrders:{}, sales:{}, expenses:{}, movements:{}, shifts:{}, payments:{} };
 
 // ============================================================
 // CURRENCY — عرض العملة المختارة برمزها العربي في كل الشاشات
@@ -7849,6 +7923,7 @@ function renderSuppliers(){
     <td><span class="badge ${s.status==='active'?'badge-success':'badge-danger'}">${s.status==='active'?'نشط':'متوقف'}</span></td>
     <td>
       <div style="display:flex;gap:4px;">
+        <button class="btn btn-ghost btn-xs" onclick="openStatement('supplier','${id}')" title="كشف حساب شامل" style="color:var(--accent);border-color:var(--accent);"><i class="fas fa-file-invoice-dollar"></i></button>
         <button class="btn btn-ghost btn-xs" onclick="editSupplier('${id}')"><i class="fas fa-edit"></i></button>
         <button class="btn btn-danger btn-xs" onclick="delSupplier('${id}')"><i class="fas fa-trash"></i></button>
       </div>
@@ -8002,6 +8077,8 @@ function openAddPO(){
   });
   brSel.value='__central__';
   updatePODestLabel();
+  document.getElementById('po-paid').value='0';
+  populatePoCashbox();
   renderPOItems();
   openModal('modal-po');
 }
@@ -8028,6 +8105,11 @@ function openEditPO(id){
   });
   brSel.value=o.branchId||'__central__';
   updatePODestLabel();
+  // عند التعديل نعرض ما سبق دفعه ولا نسمح بتكرار خصمه من الخزينة
+  document.getElementById('po-paid').value=(+o.amountPaid||0).toFixed(2);
+  document.getElementById('po-paid').readOnly=true;
+  document.getElementById('po-paid').title='الدفعات تُدار من صفحة الديون بعد إنشاء الأمر';
+  populatePoCashbox();
   renderPOItems();
   openModal('modal-po');
 }
@@ -8160,6 +8242,35 @@ function calcPOTotals(){
   document.getElementById('po-subtotal').textContent=subtotal.toFixed(2);
   document.getElementById('po-tax').textContent=tax.toFixed(2);
   document.getElementById('po-total').textContent=total.toFixed(2);
+
+  // المتبقي = الإجمالي − المدفوع، وهو ما يصير ديناً على المحل للمورد
+  const paidEl=document.getElementById('po-paid');
+  let paid=parseFloat(paidEl?.value||0)||0;
+  if(paid<0){ paid=0; if(paidEl) paidEl.value='0'; }
+  if(paid>total){ paid=total; if(paidEl) paidEl.value=total.toFixed(2); }
+  const balance=Math.max(0,total-paid);
+  const balEl=document.getElementById('po-balance');
+  if(balEl){
+    balEl.textContent=balance.toFixed(2);
+    const full=balance<=0;
+    balEl.style.background=full?'var(--green-bg)':'var(--red-bg)';
+    balEl.style.color     =full?'var(--green)'   :'var(--red)';
+  }
+  return {subtotal,tax,total,paid,balance};
+}
+
+// خزائن الفرع لأمر الشراء
+function populatePoCashbox(){
+  const el=document.getElementById('po-cashbox'); if(!el) return;
+  const cur=el.value;
+  const currency=S.settings?.general?.currency||'EGP';
+  const myBranch=CURRENT_USER?.branch||'';
+  const list=Object.entries(S.cashboxes||{}).filter(([,cb])=>
+    cb.status!=='disabled' && (!myBranch||CURRENT_USER?.role==='admin'||cb.branchId===myBranch||!cb.branchId));
+  el.innerHTML='<option value="">-- اختر الخزينة --</option>'+
+    list.map(([id,cb])=>`<option value="${id}">${cb.name} (${(+cb.balance||0).toFixed(2)} ${currency})</option>`).join('');
+  el.value=cur;
+  if(!el.value && list.length===1) el.value=list[0][0];
 }
 
 async function savePO(status){
@@ -8174,14 +8285,34 @@ async function savePO(status){
   const subtotal=validItems.reduce((s,it)=>s+it.qty*it.cost,0);
   const total=subtotal*(1+vat);
 
+  // الدفع للمورد: ما دُفع الآن، والباقي يصير ديناً على المحل
+  const paidNow = editingPO ? (+(S.purchaseOrders||{})[editingPO]?.amountPaid||0)
+                            : Math.min(Math.max(0,parseFloat(document.getElementById('po-paid')?.value||0)||0), total);
+  const poCbId  = document.getElementById('po-cashbox')?.value||'';
+  const balance = Math.max(0, total - paidNow);
+
+  if(!editingPO && paidNow>0 && !poCbId){
+    toast('اختر الخزينة التي سيُدفع منها المبلغ للمورد','error');
+    document.getElementById('po-cashbox')?.focus();
+    return;
+  }
+
   const poData={
     supplierId,
+    supplierName: (S.suppliers||{})[supplierId]?.name||'',
     branchId: branchId||null,
     branchName: branchId?getBranchName(branchId):'النظام المركزي',
     items:validItems,subtotal,total,
+    // بدون هذه الحقول كان دين المورد يظل صفراً مهما اشترى المحل
+    amountPaid: paidNow,
+    balance,
+    payStatus: balance<=0 ? 'completed' : (paidNow>0 ? 'partial' : 'unpaid'),
+    cashboxId: poCbId||'',
+    date: new Date().toISOString().slice(0,10),
     notes:document.getElementById('po-notes').value?.trim()||'',
     status,expectedDate:document.getElementById('po-expected-date').value||'',
     createdBy:CURRENT_USER?.id,
+    createdByName:CURRENT_USER?.name||'',
     updatedAt:new Date().toISOString(),
     ...shiftStamp(),
   };
@@ -8199,6 +8330,27 @@ async function savePO(status){
       poData.createdAt=new Date().toISOString();
       poId=uid();
       await dbSet('purchaseOrders/'+poId, poData);
+
+      // الدفعة المسدَّدة عند الإنشاء: تُخصم من الخزينة وتُسجَّل دفعةً ومصروفاً
+      if(paidNow>0 && poCbId){
+        const supName=poData.supplierName||'المورد';
+        const payId=await recordPayment({
+          kind:'sup_settle', partyType:'supplier', partyId:supplierId, partyName:supName,
+          amount:paidNow, cashboxId:poCbId, method:'cash',
+          notes:`دفعة مع أمر الشراء ${poData.poNumber}`,
+          allocations:[{ poId, poNumber:poData.poNumber, amount:paidNow }],
+          refId:poId,
+        });
+        await dbSet('expenses/'+uid(),{
+          desc:`مشتريات — ${supName} (${poData.poNumber})`,
+          amount:paidNow, category:'suppliers',
+          branchId:branchId||'', cashboxId:poCbId,
+          paymentId:payId, supplierId, autoGenerated:true,
+          createdBy:CURRENT_USER?.id, createdByName:CURRENT_USER?.name||'',
+          createdAt:new Date().toISOString(),
+          ...shiftStamp(),
+        });
+      }
     }
     // If received, update stock
     if(status==='received'){
@@ -10350,11 +10502,28 @@ function populateFinBranches(){
   });
 }
 function populateExpBranch(){
-  const el=document.getElementById('exp-branch'); if(!el) return;
-  el.innerHTML='<option value="">كل الفروع</option>';
-  Object.entries(S.branches||{}).forEach(([id,b])=>{
-    const o=document.createElement('option'); o.value=id; o.textContent=b.name; el.appendChild(o);
-  });
+  const el=document.getElementById('exp-branch');
+  if(el){
+    el.innerHTML='<option value="">كل الفروع</option>';
+    Object.entries(S.branches||{}).forEach(([id,b])=>{
+      const o=document.createElement('option'); o.value=id; o.textContent=b.name; el.appendChild(o);
+    });
+  }
+  populateExpCashbox();
+}
+
+// خزائن الفرع الحالي (الأدمن يرى الكل) مع أرصدتها
+function populateExpCashbox(){
+  const el=document.getElementById('exp-cashbox'); if(!el) return;
+  const cur=el.value;
+  const currency=S.settings?.general?.currency||'EGP';
+  const myBranch=CURRENT_USER?.branch||'';
+  const list=Object.entries(S.cashboxes||{}).filter(([,cb])=>
+    cb.status!=='disabled' && (!myBranch||CURRENT_USER?.role==='admin'||cb.branchId===myBranch||!cb.branchId));
+  el.innerHTML='<option value="">-- اختر الخزينة --</option>'+
+    list.map(([id,cb])=>`<option value="${id}">${cb.name} (${(+cb.balance||0).toFixed(2)} ${currency})</option>`).join('');
+  el.value=cur;
+  if(!el.value && list.length===1) el.value=list[0][0];
 }
 
 function renderFinStats(){
@@ -10481,21 +10650,44 @@ function renderExpenses(){
 async function saveExpense(){
   const desc=(document.getElementById('exp-desc')?.value||'').trim();
   const amount=parseFloat(document.getElementById('exp-amount')?.value||0);
+  const cbId=document.getElementById('exp-cashbox')?.value||'';
   if(!desc){ toast('أدخل بيان المصروف','error'); return; }
   if(!amount||amount<=0){ toast('أدخل مبلغاً صحيحاً','error'); return; }
+
+  // بدون خزينة كان المصروف يُسجَّل ورقياً بينما رصيد الخزينة لا يتحرك،
+  // فيظهر فرق في الجرد آخر الوردية بلا سبب ظاهر
+  if(!cbId){
+    const sel=document.getElementById('exp-cashbox');
+    toast('اختر الخزينة التي سيُصرف منها المبلغ','error');
+    if(sel){ sel.focus(); const p=sel.style.borderColor; sel.style.borderColor='var(--red)';
+             setTimeout(()=>sel.style.borderColor=p,1800); }
+    return;
+  }
+
+  const cb=(S.cashboxes||{})[cbId];
+  if(cb && (+cb.balance||0) < amount){
+    const ok=await confirm2(
+      `رصيد «${cb.name}» (${(+cb.balance||0).toFixed(2)}) أقل من قيمة المصروف (${amount.toFixed(2)}).`,
+      'رصيد غير كافٍ','⚠️','صرف رغم ذلك','btn-warning');
+    if(!ok) return;
+  }
+
   const data={
     desc,amount,
     category:document.getElementById('exp-cat')?.value||'other',
     branchId:document.getElementById('exp-branch')?.value||'',
+    cashboxId:cbId,
     createdBy:CURRENT_USER?.id,createdByName:CURRENT_USER?.name||'',
     createdAt:new Date().toISOString(),
     ...shiftStamp(),
   };
   try{
-    await dbSet('expenses/'+uid(),data);
+    const expId=uid();
+    await dbSet('expenses/'+expId,data);
+    await addCashboxEntry(cbId, amount, 'withdraw', `مصروف — ${desc}`, expId);
     document.getElementById('exp-desc').value='';
     document.getElementById('exp-amount').value='';
-    toast('تم إضافة المصروف ✅');
+    toast('تم تسجيل المصروف وخصمه من الخزينة ✅');
   }catch(e){ toast('خطأ: '+e.message,'error'); }
 }
 async function delExpense(id){
@@ -10945,7 +11137,7 @@ ${panel.innerHTML}
 // ── مسح كل بيانات النظام (أدمن فقط + تحقق مزدوج) ──
 const CLEARABLE_STORES=['products','customers','sales','purchaseOrders','expenses',
                         'suppliers','movements','categories','cashboxes','cashboxLog',
-                        'returns','warehouses','stockTransfers','lossRecords'];
+                        'returns','warehouses','stockTransfers','lossRecords','payments'];
 
 function openClearAllModal(){
   if(CURRENT_USER?.role!=='admin'){ toast('هذه العملية متاحة للأدمن فقط','error'); return; }
@@ -13692,6 +13884,315 @@ async function addCashboxEntry(cbId, amount, type, desc, ref='') {
 }
 
 // ============================================================
+// PAYMENTS — سجل المدفوعات الموحّد
+// ============================================================
+// كل حركة نقدية مرتبطة بطرف (عميل أو مورد) تُسجَّل هنا، فيصير لكل قرش
+// أثر يُراجَع: مين دفع، كام، إمتى، في أي خزينة، في أي وردية، ولأي فواتير.
+// بدون هذا السجل كان تحصيل الدين يُنقص الرصيد ولا يترك خبراً عن المبلغ.
+
+const PAYMENT_KINDS = {
+  cust_collect: { label:'تحصيل من عميل',   dir:'in'  },
+  sup_settle:   { label:'سداد لمورد',      dir:'out' },
+  sale_collect: { label:'تحصيل فاتورة',    dir:'in'  },
+};
+const PAY_METHOD_LABELS = { cash:'نقدي', transfer:'تحويل بنكي', card:'بطاقة', check:'شيك' };
+
+// يسجّل الدفعة ويحرّك الخزينة معاً. أي مسار مالي جديد يجب أن يمر من هنا.
+async function recordPayment({ kind, partyType, partyId, partyName, amount, cashboxId,
+                               method='cash', notes='', allocations=[], refId='' }){
+  const dir = PAYMENT_KINDS[kind]?.dir || 'in';
+  const cb  = (S.cashboxes||{})[cashboxId];
+  const payId = uid();
+
+  const data = {
+    kind, dir,
+    partyType, partyId, partyName: partyName||'',
+    amount: +amount||0,
+    method, notes,
+    cashboxId:   cashboxId||'',
+    cashboxName: cb?.name||'',
+    // الفواتير التي أُطفئت بهذه الدفعة — تُظهر في كشف الحساب ما سُدِّد بالضبط
+    allocations,
+    refId,
+    branchId:  CURRENT_USER?.branch||'',
+    date:      new Date().toISOString().slice(0,10),
+    createdAt: new Date().toISOString(),
+    createdBy: CURRENT_USER?.id||'',
+    createdByName: CURRENT_USER?.name||'',
+    ...shiftStamp(),
+  };
+
+  await dbSet('payments/'+payId, data);
+
+  // حركة الخزينة: تحصيل يُودَع، وسداد يُصرَف
+  if(cashboxId){
+    await addCashboxEntry(
+      cashboxId, +amount||0, dir==='in'?'deposit':'withdraw',
+      `${PAYMENT_KINDS[kind]?.label||'دفعة'} — ${partyName||''}`.trim(),
+      payId
+    );
+  }
+  return payId;
+}
+
+// ============================================================
+// كشف الحساب — للعميل والمورد
+// ============================================================
+// يجمع كل ما يخصّ الطرف في حركة زمنية واحدة برصيد جارٍ، فيُقرأ الحساب
+// كما يُقرأ دفتر: كل سطر يبيّن أثره على الرصيد وما آل إليه بعده.
+// اصطلاح الإشارة: موجب = مستحق علينا أو له، سالب = سُدِّد.
+
+let _stmtCtx = null;   // {type:'customer'|'supplier', id}
+
+function openStatement(type, id){
+  const party = type==='customer' ? (S.customers||{})[id] : (S.suppliers||{})[id];
+  if(!party){ toast('لم يُعثر على بيانات الطرف','error'); return; }
+  _stmtCtx = {type, id};
+  document.getElementById('stmt-title').textContent =
+    (type==='customer'?'كشف حساب عميل — ':'كشف حساب مورد — ') + (party.name||'');
+  // نبدأ بكل الفترات حتى يظهر الرصيد الحقيقي لا جزءاً منه
+  document.getElementById('stmt-from').value='';
+  document.getElementById('stmt-to').value='';
+  const payBtn=document.getElementById('stmt-pay-btn');
+  payBtn.onclick=()=>{ closeModal('modal-statement'); openPayDebt(type==='customer'?'cust':'sup', id); };
+  renderStatement();
+  openModal('modal-statement');
+}
+
+function setStmtRange(r){
+  const now=new Date(), iso=d=>d.toISOString().slice(0,10);
+  let from='', to=iso(now);
+  if(r==='month') from=iso(now).slice(0,7)+'-01';
+  else if(r==='year') from=iso(now).slice(0,4)+'-01-01';
+  else { from=''; to=''; }
+  document.getElementById('stmt-from').value=from;
+  document.getElementById('stmt-to').value=to;
+  renderStatement();
+}
+
+// يبني كل حركات الطرف مرتّبة زمنياً
+function buildStatementRows(type, id){
+  const rows=[];
+  const D=v=>(v||'').slice(0,10);
+
+  // ما سُدِّد لاحقاً لكل فاتورة/أمر عبر سجل المدفوعات.
+  // amountPaid على الفاتورة يتراكم مع كل تحصيل، فلو طرحناه كاملاً من قيمة
+  // الفاتورة ثم طرحنا الدفعة مرة أخرى لحُسب المبلغ مرتين. لذا نستخرج
+  // «المدفوع وقت البيع» = amountPaid − مجموع ما خُصص لها من دفعات لاحقة.
+  const laterPaid = {};
+  Object.values(S.payments||{}).forEach(p=>{
+    (p.allocations||[]).forEach(a=>{
+      const key=a.saleId||a.poId;
+      if(key) laterPaid[key]=(laterPaid[key]||0)+(+a.amount||0);
+    });
+  });
+
+  if(type==='customer'){
+    // المبيعات: تزيد ما على العميل بقيمة الآجل منها فقط
+    Object.entries(S.sales||{})
+      .filter(([,s])=>s.customerId===id||s.custId===id)
+      .forEach(([sid,s])=>{
+        const total=+s.total||0;
+        const paidAtSale=Math.max(0,(+s.amountPaid||0)-(laterPaid[sid]||0));
+        rows.push({
+          at:s.createdAt||s.date||'', date:D(s.date||s.createdAt),
+          kind:'sale', label:'فاتورة بيع',
+          ref:s.invNumber||sid.slice(-6).toUpperCase(),
+          total, paid:paidAtSale,
+          effect:total-paidAtSale,              // الآجل وحده يدخل الرصيد
+          note:(s.items||[]).length+' صنف',
+        });
+      });
+    // التحصيلات
+    Object.entries(S.payments||{})
+      .filter(([,p])=>p.partyType==='customer'&&p.partyId===id)
+      .forEach(([pid,p])=>rows.push({
+        at:p.createdAt||'', date:D(p.date||p.createdAt),
+        kind:'payment', label:'تحصيل نقدي',
+        ref:pid.slice(-6).toUpperCase(),
+        total:0, paid:+p.amount||0, effect:-(+p.amount||0),
+        note:[PAY_METHOD_LABELS[p.method]||p.method, p.cashboxName].filter(Boolean).join(' — '),
+      }));
+    // مرتجعات المبيعات: تُنقص ما على العميل
+    Object.entries(S.returns||{})
+      .filter(([,r])=>r.type==='sale'&&(r.customerId===id||r.partyId===id))
+      .forEach(([rid,r])=>rows.push({
+        at:r.createdAt||r.date||'', date:D(r.date||r.createdAt),
+        kind:'return', label:'مرتجع مبيعات',
+        ref:rid.slice(-6).toUpperCase(),
+        total:+r.total||0, paid:0, effect:-(+r.total||0),
+        note:RETURN_REASONS[r.reason]||r.reason||'',
+      }));
+  } else {
+    // المشتريات: تزيد ما على المحل للمورد بقيمة الآجل منها
+    Object.entries(S.purchaseOrders||{})
+      .filter(([,p])=>p.supplierId===id)
+      .forEach(([pid,p])=>{
+        const total=+p.total||0;
+        const paidAtBuy=Math.max(0,(+p.amountPaid||0)-(laterPaid[pid]||0));
+        rows.push({
+          at:p.createdAt||p.date||'', date:D(p.date||p.createdAt),
+          kind:'purchase', label:'أمر شراء',
+          ref:p.poNumber||pid.slice(-6).toUpperCase(),
+          total, paid:paidAtBuy, effect:total-paidAtBuy,
+          note:(p.items||[]).length+' صنف',
+        });
+      });
+    // السدادات للمورد
+    Object.entries(S.payments||{})
+      .filter(([,p])=>p.partyType==='supplier'&&p.partyId===id)
+      .forEach(([pid,p])=>rows.push({
+        at:p.createdAt||'', date:D(p.date||p.createdAt),
+        kind:'payment', label:'سداد للمورد',
+        ref:pid.slice(-6).toUpperCase(),
+        total:0, paid:+p.amount||0, effect:-(+p.amount||0),
+        note:[PAY_METHOD_LABELS[p.method]||p.method, p.cashboxName].filter(Boolean).join(' — '),
+      }));
+    // مرتجعات المشتريات: تُنقص ما علينا
+    Object.entries(S.returns||{})
+      .filter(([,r])=>r.type==='purchase'&&r.partyId===id)
+      .forEach(([rid,r])=>rows.push({
+        at:r.createdAt||r.date||'', date:D(r.date||r.createdAt),
+        kind:'return', label:'مرتجع مشتريات',
+        ref:rid.slice(-6).toUpperCase(),
+        total:+r.total||0, paid:0, effect:-(+r.total||0),
+        note:RETURN_REASONS[r.reason]||r.reason||'',
+      }));
+  }
+
+  return rows.sort((a,b)=>(a.at||'').localeCompare(b.at||''));
+}
+
+function renderStatement(){
+  if(!_stmtCtx) return;
+  const {type,id}=_stmtCtx;
+  const party = type==='customer' ? (S.customers||{})[id] : (S.suppliers||{})[id];
+  if(!party) return;
+  const currency=S.settings?.general?.currency||'EGP';
+  const m=v=>Number(v||0).toFixed(2);
+  const from=document.getElementById('stmt-from')?.value||'';
+  const to  =document.getElementById('stmt-to')?.value||'';
+
+  const all=buildStatementRows(type,id);
+  // رصيد ما قبل الفترة يُعرض كسطر افتتاحي، فلا يبدو الكشف مبتوراً
+  const opening=all.filter(r=>from&&r.date&&r.date<from).reduce((s,r)=>s+r.effect,0);
+  const rows   =all.filter(r=>(!from||r.date>=from)&&(!to||r.date<=to));
+
+  let bal=opening;
+  const body=rows.map(r=>{
+    bal+=r.effect;
+    const color=r.effect>0?'var(--red)':'var(--green)';
+    const sign =r.effect>0?'+':'';
+    const badge={
+      sale:'badge-info', purchase:'badge-purple', payment:'badge-success', return:'badge-warning'
+    }[r.kind]||'badge-info';
+    return `<tr>
+      <td style="font-size:11px;color:var(--text2);white-space:nowrap;">${r.date||'—'}</td>
+      <td><span class="badge ${badge}" style="font-size:10px;">${r.label}</span></td>
+      <td style="font-size:11px;font-weight:700;color:var(--accent);">${r.ref}</td>
+      <td style="font-size:11px;color:var(--text2);">${r.note||'—'}</td>
+      <td style="text-align:left;">${r.total?m(r.total):'—'}</td>
+      <td style="text-align:left;color:var(--green);">${r.paid?m(r.paid):'—'}</td>
+      <td style="text-align:left;font-weight:700;color:${color};">${sign}${m(r.effect)}</td>
+      <td style="text-align:left;font-weight:800;">${m(bal)}</td>
+    </tr>`;
+  }).join('');
+
+  // ملخص الفترة المعروضة
+  const sum=k=>rows.filter(r=>r.kind===k).reduce((s,r)=>s+(k==='payment'?r.paid:r.total),0);
+  const closing=bal;
+  const label = type==='customer' ? 'مستحق على العميل' : 'مستحق للمورد';
+
+  const info = type==='customer'
+    ? [['الاسم',party.name],['الهاتف',party.phone||'—'],['النوع',PRICE_MODE_LABELS[party.custType]||'قطاعي'],
+       ['البريد',party.email||'—'],['العنوان',party.addr||'—'],['الفرع',getBranchName(party.branchId)||'—'],
+       ['تاريخ الإضافة',(party.createdAt||'').slice(0,10)||'—'],['كود العميل',id.slice(-6).toUpperCase()]]
+    : [['الاسم',party.name],['الهاتف',party.phone||'—'],['المسؤول',party.contact||'—'],
+       ['البريد',party.email||'—'],['العنوان',party.address||'—'],['الحالة',party.status==='active'?'نشط':'موقوف'],
+       ['تاريخ الإضافة',(party.createdAt||'').slice(0,10)||'—'],['كود المورد',id.slice(-6).toUpperCase()]];
+
+  const cards = type==='customer'
+    ? [{l:'إجمالي المشتريات',v:m(sum('sale'))+' '+currency,c:'accent'},
+       {l:'إجمالي المحصَّل',  v:m(sum('payment'))+' '+currency,c:'green'},
+       {l:'إجمالي المرتجعات', v:m(sum('return'))+' '+currency,c:'yellow'},
+       {l:label,             v:m(closing)+' '+currency,c:closing>0?'red':'green'}]
+    : [{l:'إجمالي المشتريات منه',v:m(sum('purchase'))+' '+currency,c:'purple'},
+       {l:'إجمالي المسدَّد',      v:m(sum('payment'))+' '+currency,c:'green'},
+       {l:'مرتجعات المشتريات',   v:m(sum('return'))+' '+currency,c:'yellow'},
+       {l:label,                v:m(closing)+' '+currency,c:closing>0?'red':'green'}];
+
+  document.getElementById('stmt-body').innerHTML=`
+    <!-- البيانات الشخصية -->
+    <div class="card" style="margin-bottom:14px;">
+      <div class="sec-title mb-3"><div class="sec-dot"></div>بيانات ${type==='customer'?'العميل':'المورد'}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px;font-size:12.5px;">
+        ${info.map(([k,v])=>`<div><span style="color:var(--text2);">${k}:</span> <strong>${v||'—'}</strong></div>`).join('')}
+      </div>
+      ${party.notes?`<div style="margin-top:10px;padding:8px 11px;background:var(--card2);border-radius:8px;font-size:12px;color:var(--text2);"><i class="fas fa-sticky-note"></i> ${party.notes}</div>`:''}
+    </div>
+
+    <!-- الملخص -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px;">
+      ${cards.map(c=>`<div style="background:var(--card2);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:15px;font-weight:900;color:var(--${c.c});">${c.v}</div>
+        <div style="font-size:10.5px;color:var(--text2);margin-top:3px;">${c.l}</div>
+      </div>`).join('')}
+    </div>
+
+    <!-- الحركة -->
+    <div class="sec-title mb-3"><div class="sec-dot" style="background:var(--accent)"></div>حركة الحساب (${rows.length} حركة)</div>
+    ${opening?`<div style="background:var(--card2);border-radius:8px;padding:9px 12px;font-size:12px;margin-bottom:9px;">
+      رصيد ما قبل ${from}: <strong>${m(opening)} ${currency}</strong></div>`:''}
+    ${rows.length?`<div class="tbl-wrap"><table>
+      <thead><tr>
+        <th>التاريخ</th><th>الحركة</th><th>المرجع</th><th>بيان</th>
+        <th style="text-align:left;">القيمة</th><th style="text-align:left;">مدفوع</th>
+        <th style="text-align:left;">الأثر</th><th style="text-align:left;">الرصيد</th>
+      </tr></thead>
+      <tbody>${body}</tbody>
+      <tfoot><tr style="background:var(--card2);font-weight:800;">
+        <td colspan="7" style="text-align:left;">الرصيد الختامي</td>
+        <td style="text-align:left;color:${closing>0?'var(--red)':'var(--green)'};">${m(closing)} ${currency}</td>
+      </tr></tfoot>
+    </table></div>`
+    :`<div style="text-align:center;padding:26px;color:var(--text2);background:var(--card2);border-radius:10px;">
+        لا توجد حركات في هذه الفترة</div>`}
+
+    <div style="margin-top:12px;font-size:11px;color:var(--text3);line-height:1.8;">
+      الأثر الموجب يزيد ${type==='customer'?'ما على العميل':'ما على المحل للمورد'}، والسالب يُنقصه.
+      المبيعات تدخل بقيمة الآجل منها فقط، لأن المدفوع نقداً لا يُنشئ ديناً.
+    </div>`;
+}
+
+function exportStatementExcel(){
+  if(!_stmtCtx){ return; }
+  if(!xlsxReady()){ toast('مكتبة Excel غير محملة','error'); return; }
+  const {type,id}=_stmtCtx;
+  const party = type==='customer' ? (S.customers||{})[id] : (S.suppliers||{})[id];
+  const currency=S.settings?.general?.currency||'EGP';
+  const from=document.getElementById('stmt-from')?.value||'';
+  const to  =document.getElementById('stmt-to')?.value||'';
+  const all=buildStatementRows(type,id);
+  const opening=all.filter(r=>from&&r.date&&r.date<from).reduce((s,r)=>s+r.effect,0);
+  const rows=all.filter(r=>(!from||r.date>=from)&&(!to||r.date<=to));
+
+  const wb=XLSX.utils.book_new();
+  const head=[[`كشف حساب ${type==='customer'?'عميل':'مورد'}`],[''],
+    ['الاسم',party.name||''],['الهاتف',party.phone||''],
+    ['الفترة',(from||'البداية')+' إلى '+(to||'اليوم')],
+    ['العملة',currency],[''],
+    ['التاريخ','الحركة','المرجع','بيان','القيمة','مدفوع','الأثر','الرصيد']];
+  let bal=opening;
+  const data=rows.map(r=>{ bal+=r.effect;
+    return [r.date,r.label,r.ref,r.note,+r.total.toFixed(2),+r.paid.toFixed(2),
+            +r.effect.toFixed(2),+bal.toFixed(2)]; });
+  data.push(['','','','','','','الرصيد الختامي',+bal.toFixed(2)]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([...head,...data]),'كشف الحساب');
+  XLSX.writeFile(wb,`كشف-حساب-${(party.name||'').replace(/\s/g,'_')}-${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast('✅ تم تصدير كشف الحساب');
+}
+
+// ============================================================
 // DEBTS — إدارة الديون
 // ============================================================
 function renderDebts() {
@@ -13799,6 +14300,9 @@ function renderDebtsCust() {
         <button class="btn btn-success btn-sm" onclick="openPayDebt('cust','${id}')">
           <i class="fas fa-hand-holding-usd"></i> تحصيل
         </button>
+        <button class="btn btn-ghost btn-xs" onclick="openStatement('customer','${id}')" title="كشف حساب شامل" style="margin-right:4px;color:var(--accent);border-color:var(--accent);">
+          <i class="fas fa-file-invoice-dollar"></i>
+        </button>
         <button class="btn btn-ghost btn-xs" onclick="openCustProfile('${id}')" title="الملف الشامل" style="margin-right:4px;">
           <i class="fas fa-id-card"></i>
         </button>
@@ -13857,6 +14361,9 @@ function renderDebtsSup() {
       <td>
         <button class="btn btn-warning btn-sm" onclick="openPayDebt('sup','${k}')">
           <i class="fas fa-hand-holding-usd"></i> سداد
+        </button>
+        <button class="btn btn-ghost btn-xs" onclick="openStatement('supplier','${k}')" title="كشف حساب شامل" style="margin-right:4px;color:var(--accent);border-color:var(--accent);">
+          <i class="fas fa-file-invoice-dollar"></i>
         </button>
       </td>
     </tr>`;
@@ -14015,6 +14522,7 @@ function renderCustomers() {
       <td style="white-space:nowrap;">
         <button class="btn btn-ghost btn-xs" onclick="openCustProfile('${id}')" title="الملف الشامل"><i class="fas fa-id-card"></i></button>
         ${debt>0?`<button class="btn btn-success btn-xs" onclick="openPayDebt('cust','${id}')" title="تسديد الدين"><i class="fas fa-hand-holding-usd"></i></button>`:''}
+        <button class="btn btn-ghost btn-xs" onclick="openStatement('customer','${id}')" title="كشف حساب شامل" style="color:var(--accent);border-color:var(--accent);"><i class="fas fa-file-invoice-dollar"></i></button>
         <button class="btn btn-ghost btn-xs" onclick="editCust('${id}')" title="تعديل"><i class="fas fa-edit"></i></button>
         <button class="btn btn-danger btn-xs" onclick="delCust('${id}')" title="حذف"><i class="fas fa-trash"></i></button>
       </td>
@@ -14232,6 +14740,7 @@ function loadCustomerProfile(id) {
     : '<tr><td colspan="4" style="text-align:center;padding:14px;color:var(--text2);">لا توجد مرتجعات</td></tr>';
 
   // أزرار
+  document.getElementById('cs-stmt-btn').onclick = ()=>{ closeModal('modal-cust-search'); openStatement('customer',id); };
   document.getElementById('cs-edit-btn').onclick = ()=>{ closeModal('modal-cust-search'); editCust(id); };
   document.getElementById('cs-ret-btn').onclick  = ()=>{ closeModal('modal-cust-search'); nav('returns'); setTimeout(()=>openAddReturn(),200); };
   const payBtn = document.getElementById('cs-pay-btn');
@@ -14278,7 +14787,28 @@ function openPayDebt(type, refId) {
     </div>`;
     document.getElementById('pd-amount').value = bal>0 ? bal.toFixed(2) : '';
   }
+
+  populatePdCashbox();
+  const hint=document.getElementById('pd-cashbox-hint');
+  if(hint){
+    hint.innerHTML = type==='sup'
+      ? '<i class="fas fa-arrow-circle-down" style="color:var(--red);"></i> سيُخصم المبلغ من الخزينة المختارة ويُسجَّل مصروفاً باسم المورد.'
+      : '<i class="fas fa-arrow-circle-up" style="color:var(--green);"></i> سيُودَع المبلغ في الخزينة المختارة ويظهر في تقفيلة الوردية وكشف حساب العميل.';
+  }
   openModal('modal-pay-debt');
+}
+
+// خزائن الفرع الحالي فقط (الأدمن يرى الكل)
+function populatePdCashbox(){
+  const el=document.getElementById('pd-cashbox'); if(!el) return;
+  const currency=S.settings?.general?.currency||'EGP';
+  const myBranch=CURRENT_USER?.branch||'';
+  const list=Object.entries(S.cashboxes||{}).filter(([,cb])=>
+    cb.status!=='disabled' && (!myBranch||CURRENT_USER?.role==='admin'||cb.branchId===myBranch||!cb.branchId));
+  el.innerHTML='<option value="">-- اختر الخزينة --</option>'+
+    list.map(([id,cb])=>`<option value="${id}">${cb.name} (${(+cb.balance||0).toFixed(2)} ${currency})</option>`).join('');
+  // خزينة واحدة فقط؟ نختارها تلقائياً حتى لا نُثقل الكاشير بخطوة بلا بديل
+  if(list.length===1) el.value=list[0][0];
 }
 
 async function saveDebtPayment() {
@@ -14286,19 +14816,41 @@ async function saveDebtPayment() {
   const refId  = document.getElementById('pd-ref-id').value;
   const amount = parseFloat(document.getElementById('pd-amount').value)||0;
   const notes  = document.getElementById('pd-notes').value;
+  const method = document.getElementById('pd-method')?.value||'cash';
+  const cbId   = document.getElementById('pd-cashbox')?.value||'';
   if(!amount||amount<=0){ toast('يرجى إدخال مبلغ صحيح','error'); return; }
+
+  // الخزينة إلزامية: بدونها كان المبلغ يختفي — يُنقَص الدين ولا يدخل النظام قرش
+  if(!cbId){
+    const sel=document.getElementById('pd-cashbox');
+    toast('اختر الخزينة أولاً — لا يمكن تسجيل دفعة بدون خزينة','error');
+    if(sel){ sel.focus(); const p=sel.style.borderColor; sel.style.borderColor='var(--red)';
+             setTimeout(()=>sel.style.borderColor=p,1800); }
+    return;
+  }
+
+  const btn=document.querySelector('#modal-pay-debt .btn-success');
+  if(btn){ btn.disabled=true; btn.style.opacity='.6'; }
 
   try {
     if(type==='cust'){
       const c = (S.customers||{})[refId]; if(!c) return;
-      const newBal = Math.max(0,(+c.balance||0)-amount);
+      const debtNow = +c.balance||0;
+      if(amount>debtNow+0.01){
+        const ok=await confirm2(
+          `المبلغ (${amount.toFixed(2)}) أكبر من الدين المستحق (${debtNow.toFixed(2)}). سيُسجَّل الفائض رصيداً للعميل.`,
+          'مبلغ أكبر من الدين','⚠️','متابعة','btn-warning');
+        if(!ok){ if(btn){btn.disabled=false;btn.style.opacity='1';} return; }
+      }
+      const newBal = Math.max(0,debtNow-amount);
       await dbUpdate('customers/'+refId,{
         balance: newBal,
         lastDebtPaidAt: new Date().toISOString(),
         lastDebtPaidBy: CURRENT_USER?.name||''
       });
-      // تسديد الفواتير المرتبطة
+      // تسديد الفواتير المرتبطة — الأقدم أولاً، ونحتفظ بما سُدِّد لكل فاتورة
       let remaining = amount;
+      const allocations=[];
       const unpaidSales = filterByBranch(S.sales||{})
         .filter(([,s])=>(s.customerId===refId||s.custId===refId)&&(+s.balance||0)>0)
         .sort(([,a],[,b])=>new Date(a.date||0)-new Date(b.date||0));
@@ -14312,13 +14864,19 @@ async function saveDebtPayment() {
             amountPaid:(+s.amountPaid||0)+pay,
             status: newSaleBal<=0?'paid':'partial'
           });
+          allocations.push({ saleId:sid, invNumber:s.invNumber||sid.slice(-6).toUpperCase(), amount:pay });
           remaining -= pay;
         }
       }
-      toast(`تم تسجيل تحصيل ${amount.toFixed(2)} من ${c.name} ✅`);
+      await recordPayment({
+        kind:'cust_collect', partyType:'customer', partyId:refId, partyName:c.name||'',
+        amount, cashboxId:cbId, method, notes, allocations,
+      });
+      toast(`تم تحصيل ${amount.toFixed(2)} من ${c.name} وإيداعها في الخزينة ✅`);
     } else if(type==='sup'){
       // تحديث أوامر الشراء المستحقة تسلسلياً
       let remaining = amount;
+      const allocations=[];
       const unpaidPOs = Object.entries(S.purchaseOrders||{})
         .filter(([,p])=>p.supplierId===refId&&(+p.balance||0)>0)
         .sort(([,a],[,b])=>new Date(a.date||0)-new Date(b.date||0));
@@ -14334,11 +14892,33 @@ async function saveDebtPayment() {
             payStatus: newBal<=0?'completed':'partial',
             updatedAt: new Date().toISOString()
           });
+          allocations.push({ poId:pid, poNumber:p.poNumber||pid.slice(-6).toUpperCase(), amount:pay });
           remaining -= pay;
         }
       }
       const supName = (S.suppliers||{})[refId]?.name||'المورد';
-      toast(`تم تسجيل سداد ${amount.toFixed(2)} لـ ${supName} ✅`);
+
+      const payId = await recordPayment({
+        kind:'sup_settle', partyType:'supplier', partyId:refId, partyName:supName,
+        amount, cashboxId:cbId, method, notes, allocations,
+      });
+
+      // يُسجَّل مصروفاً كذلك ليظهر في المالية والتقارير وتقفيلة الوردية
+      await dbSet('expenses/'+uid(),{
+        desc:`سداد مورد — ${supName}`,
+        amount,
+        category:'suppliers',
+        branchId: CURRENT_USER?.branch||'',
+        cashboxId: cbId,
+        paymentId: payId,          // رابط بين المصروف والدفعة يمنع ازدواج القراءة
+        supplierId: refId,
+        autoGenerated: true,       // لم يُدخله المستخدم يدوياً
+        createdBy: CURRENT_USER?.id, createdByName: CURRENT_USER?.name||'',
+        createdAt: new Date().toISOString(),
+        ...shiftStamp(),
+      });
+
+      toast(`تم سداد ${amount.toFixed(2)} لـ ${supName} — خُصمت من الخزينة وسُجِّلت مصروفاً ✅`);
     } else if(type==='sale'){
       const sale = (S.sales||{})[refId]; if(!sale) return;
       const newBal  = Math.max(0,(+sale.balance||0)-amount);
@@ -14353,10 +14933,18 @@ async function saveDebtPayment() {
         const c = S.customers[custId];
         await dbUpdate('customers/'+custId,{ balance: Math.max(0,(+c.balance||0)-amount) });
       }
-      toast(`تم تسجيل تحصيل ${amount.toFixed(2)} ✅`);
+      await recordPayment({
+        kind:'sale_collect', partyType:'customer',
+        partyId: custId||'', partyName: sale.customer||sale.custName||'عميل نقدي',
+        amount, cashboxId:cbId, method, notes,
+        allocations:[{ saleId:refId, invNumber:sale.invNumber||refId.slice(-6).toUpperCase(), amount }],
+        refId,
+      });
+      toast(`تم تحصيل ${amount.toFixed(2)} وإيداعها في الخزينة ✅`);
     }
     closeModal('modal-pay-debt');
   } catch(e){ toast('خطأ: '+e.message,'error'); }
+  finally { if(btn){ btn.disabled=false; btn.style.opacity='1'; } }
 }
 
 // ============================================================
@@ -15003,10 +15591,15 @@ function attachRemainingListeners(){
   listen('expenses',v=>{ S.expenses=v||{}; renderExpenses(); renderFinStats(); renderFinReport(); renderHomeStats(); });
   listen('returns',v=>{ S.returns=v||{}; populateRetBranchFilter(); renderHomeStats(); if(document.getElementById('pg-returns')?.classList.contains('active')) renderReturns(); });
   listen('customers',v=>{ S.customers=v||{}; populateCustBranchFilter(); renderHomeStats(); if(document.getElementById('pg-customers')?.classList.contains('active')) renderCustomers(); if(document.getElementById('pg-debts')?.classList.contains('active')) renderDebts(); });
-  listen('cashboxes',v=>{ S.cashboxes=v||{}; populateCsCashbox(payMethod||'cash'); populateRetCashbox(); renderHomeStats(); if(document.getElementById('pg-cashboxes')?.classList.contains('active')) renderCashboxes(); });
+  listen('cashboxes',v=>{ S.cashboxes=v||{}; populateCsCashbox(payMethod||'cash'); populateRetCashbox(); populateExpCashbox(); renderHomeStats(); if(document.getElementById('pg-cashboxes')?.classList.contains('active')) renderCashboxes(); });
   listen('cashboxLog',v=>{ S.cashboxLog=v||{}; renderHomeStats(); if(document.getElementById('pg-cashboxes')?.classList.contains('active')){ renderCbStats(); renderCashboxLog(); } });
   listen('stockTransfers',v=>{ S.stockTransfers=v||{}; renderHomeStats(); if(document.getElementById('pg-transfers')?.classList.contains('active')) renderTransfers(); });
   listen('lossRecords',v=>{ S.lossRecords=v||{}; });
+  listen('payments',v=>{
+    S.payments=v||{};
+    renderHomeStats();
+    if(document.getElementById('pg-debts')?.classList.contains('active')) renderDebts();
+  });
   listen('shifts',v=>{
     S.shifts=v||{};
     _shiftsLoaded=true;   // من الآن يجوز فتح وردية جديدة عند الحاجة
@@ -15029,11 +15622,12 @@ function attachRemainingListeners(){
 // ============================================================
 
 const IDB = {
-  // v2: أُضيف مخزن shifts — رفع الرقم ضروري ليعمل onupgradeneeded على الأجهزة القديمة
-  db:null, DB_NAME:'shams_offline', DB_VERSION:2,
+  // v2: مخزن shifts — v3: مخزن payments.
+  // رفع الرقم ضروري ليعمل onupgradeneeded على الأجهزة التي فتحت البرنامج سابقاً
+  db:null, DB_NAME:'shams_offline', DB_VERSION:3,
   STORES:['users','branches','settings','returns','customers','cashboxes','cashboxLog',
           'stockTransfers','lossRecords','warehouses','products','categories','suppliers',
-          'purchaseOrders','sales','expenses','movements','shifts','pending_queue'],
+          'purchaseOrders','sales','expenses','movements','shifts','payments','pending_queue'],
   open(){
     return new Promise((resolve,reject)=>{
       if(this.db){ resolve(this.db); return; }
@@ -15242,7 +15836,7 @@ const OM = {
   async syncToIDB(){
     const stores=['users','branches','returns','customers','cashboxes','cashboxLog',
                   'stockTransfers','lossRecords','warehouses','products','categories',
-                  'suppliers','purchaseOrders','sales','expenses','movements','shifts'];
+                  'suppliers','purchaseOrders','sales','expenses','movements','shifts','payments'];
     for(const st of stores){
       if(S[st]&&Object.keys(S[st]).length) await IDB.saveStore(st,S[st]).catch(()=>{});
     }
@@ -15254,7 +15848,7 @@ const OM = {
   async loadFromIDB(){
     const stores=['users','branches','returns','customers','cashboxes','cashboxLog',
                   'stockTransfers','lossRecords','warehouses','products','categories',
-                  'suppliers','purchaseOrders','sales','expenses','movements','shifts'];
+                  'suppliers','purchaseOrders','sales','expenses','movements','shifts','payments'];
     let found=false;
     for(const st of stores){
       const d=await IDB.getStore(st);
